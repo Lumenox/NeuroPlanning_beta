@@ -1,0 +1,3167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Planning Neurologie</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --navy:        #0d1b2a;
+      --navy-mid:    #1a2d42;
+      --navy-light:  #243d55;
+      --teal:        #2dd4bf;
+      --teal-dim:    #14b8a620;
+      --red:         #f87171;
+      --red-dim:     #f8717120;
+      --amber:       #fbbf24;
+      --amber-dim:   #fbbf2420;
+      --purple:      #c084fc;
+      --purple-dim:  #c084fc22;
+      --white:       #f0f4f8;
+      --gray:        #8fa3b5;
+      --border:      #1e3148;
+      --cell-h:      36px;
+       --row-matin-bg: #0d1b2a;
+       --row-aprem-bg: #0d1b2a;
+    }
+
+    body.light-mode {
+       --navy:        #FFFFFF;
+       --navy-mid:    #BDCBD9;   /*C44310 */
+       --navy-light:  #243d55;
+       --teal:        #207A70;
+       --teal-dim:    #205953;
+       --white:       #0f172a;    /* tout ce qui est blanc, Navy très sombre pour le texte */
+       --gray:        #64748b;    /* Gris plus foncé pour rester lisible */
+	--border:      #A1C0E3;
+       --row-matin-bg: #FFFFFF;
+       --row-aprem-bg: #F7F9FB;
+       /* On garde le --teal pour les accents, ça marche très bien en clair aussi */
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Sora', sans-serif; background: var(--navy); color: var(--white); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    #topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 56px; background: var(--navy-mid); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    #topbar .brand { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; color: var(--teal); letter-spacing: .08em; white-space: nowrap; }
+    #topbar .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray); transition: background .3s; }
+    #status-dot.connected { background: var(--teal); box-shadow: 0 0 6px var(--teal); }
+    #status-dot.error     { background: var(--red); }
+    #realtime-badge { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--teal); background: var(--teal-dim); border: 1px solid var(--teal); border-radius: 4px; padding: 2px 6px; display: none; }
+    #realtime-badge.active { display: inline; }
+    #user-id-badge {   font-family: 'DM Mono', monospace;   font-size: 10px;   color: var(--gray);   background: var(--navy);   border: 1px solid var(--border);   border-radius: 4px;   padding: 2px 8px;   display: none; }
+    #admin-badge { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--amber); background: var(--amber-dim); border: 1px solid var(--amber); border-radius: 4px; padding: 3px 8px; display: none; }
+    .is-admin #admin-badge { display: inline; }
+
+    #auth-overlay { position: fixed; inset: 0; background: rgba(13,27,42,.96); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .auth-box { background: var(--navy-mid); border: 1px solid var(--border); border-radius: 12px; padding: 40px; width: 340px; display: flex; flex-direction: column; gap: 18px; }
+    .auth-box h2 { font-size: 18px; font-weight: 600; color: var(--teal); font-family: 'DM Mono', monospace; }
+    .auth-box p  { font-size: 12px; color: var(--gray); line-height: 1.6; }
+    .auth-box .hint { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--amber); background: var(--amber-dim); border-radius: 6px; padding: 8px 12px; }
+
+    input[type="text"], input[type="password"] { background: var(--navy); border: 1px solid var(--border); color: var(--white); padding: 8px 12px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 11px; }
+    input:focus { border-color: var(--teal); }
+    button { font-family: 'Sora', sans-serif; font-size: 12px; font-weight: 600; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; transition: opacity .15s, transform .1s; }
+    button:hover  { opacity: .85; }
+    button:active { transform: scale(.97); }
+    .btn-primary { background: var(--teal);   color: var(--navy); }
+    .btn-ghost   { background: transparent;  color: var(--gray);  border: 1px solid var(--border); }
+    .btn-danger  { background: var(--red);    color: var(--navy); }
+    .btn-save    { background: var(--amber);  color: var(--navy); }
+    .sep { width: 1px; height: 24px; background: var(--border); }
+
+    #tabs-bar { display: flex; align-items: flex-end; padding: 0 24px; background: var(--navy-mid); border-bottom: 2px solid var(--border); flex-shrink: 0; gap: 2px; }
+    .tab-btn { padding: 8px 20px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; background: var(--navy); color: var(--gray); border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; transition: background .15s, color .15s; position: relative; bottom: -2px; }
+    .tab-btn:hover { background: var(--navy-light); color: var(--white); }
+    .tab-btn.active { background: var(--navy-mid); color: var(--white); border-color: var(--border); border-bottom: 2px solid var(--navy-mid); z-index: 1; }
+    .tab-btn.tab-absences.active { color: var(--purple); }
+    .tab-btn.tab-planning.active { color: var(--teal); }
+
+    #toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 24px; background: var(--navy-mid); border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+    #toolbar-toggle-btn {   background: none; border: 1px solid var(--border); color: var(--gray);  cursor: pointer; font-size: 11px; padding: 3px 7px; border-radius: 5px;  line-height: 1; transition: color .15s, border-color .15s;  flex-shrink: 0; font-family: 'DM Mono', monospace;}
+    #toolbar-toggle-btn:hover { color: var(--teal); border-color: var(--teal); opacity: 1; }
+    #toolbar-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; }
+    #toolbar-filters.collapsed { display: none; }
+    #toolbar label { font-size: 11px; color: var(--gray); white-space: nowrap; }
+    #toolbar input[type="date"] { background: var(--navy); border: 1px solid var(--border); color: var(--white); padding: 6px 10px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 11px; }
+    #search-doctor { flex: 1; min-width: 120px; max-width: 200px; }
+    #col-toggles   { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+    .group-toggle {opacity: 0.5; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); font-family: 'DM Mono', monospace; font-size: 10px; cursor: pointer; }
+    .group-toggle input { display: none; }
+    .group-toggle.active { opacity: 1; filter: grayscale(0);}
+    .group-toggle .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+    #toolbar-planning-extras { display: flex; align-items: center; gap: 10px; }
+    #toolbar-absences-extras { display: none; align-items: center; gap: 10px; }
+
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    #stats-panel { display: none; /* Masqué pour les non-admins */
+width: 230px; background: var(--navy-mid); border-left: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; transition: width .25s ease; }
+    #stats-panel.hidden { display: none; }
+    body.is-admin #stats-panel {  display: flex;} /* Afficher uniquement si le body a la classe .is-admin */
+    #stats-panel.collapsed { width: 38px; }
+    #stats-panel .panel-title {   font-family: 'DM Mono', monospace;   font-size: 10px;   color: var(--gray);   padding: 12px 10px;   border-bottom: 1px solid var(--border);   display: flex;   justify-content: space-between;   align-items: center;   white-space: nowrap; }
+    #stats-panel.collapsed .panel-title span { display: none; }
+    #stats-toggle-btn { background: none; border: none; color: var(--teal); cursor: pointer; font-size: 18px; padding: 0; line-height: 1; flex-shrink: 0;z-index: 10;min-width: 20px; }
+    #stats-content { overflow: hidden; transition: opacity .2s; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    #stats-panel.collapsed #stats-content { opacity: 0; pointer-events: none; }
+    #stats-list { overflow-y: auto; flex: 1; padding: 8px 0; }
+    .stat-row { display: flex; align-items: center; gap: 4px; padding: 5px 12px; transition: background .15s; cursor: pointer; min-width: 0; }
+    .stat-row:hover { background: var(--navy-light); }
+    .stat-row.active-filter { background: var(--teal-dim); }
+    .stat-name { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--white); min-width: 30px; }
+    .stat-badges { flex: 1; display: flex; gap: 3px; flex-wrap: wrap; }
+    .stat-badge { font-size: 9px; background: var(--navy-light); border-radius: 3px; padding: 1px 5px; white-space: nowrap; }
+    .stat-total { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--teal); min-width: 20px; text-align: right; }
+    #conflict-summary { padding: 10px 16px; border-top: 1px solid var(--border); font-size: 11px; color: var(--gray); flex-shrink: 0; line-height: 1.8; }
+    .conf-count       { color: var(--red);    font-weight: 600; font-family: 'DM Mono', monospace; }
+    .conf-count-noncli { color: var(--purple); font-weight: 600; font-family: 'DM Mono', monospace; }
+
+    #content-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+
+
+/* --- CONFIGURATION DE LA TABLE --- */
+    #table-wrap { flex: 1; overflow: auto; position: relative; }
+    table { border-collapse: collapse; font-family: 'DM Mono', monospace; font-size: 11px; min-width: 100%; }
+    thead th { position: sticky; top: 0; z-index: 10; background: var(--navy-light); padding: 10px 8px; text-align: left; font-size: 10px; font-weight: 500; color: var(--gray); letter-spacing: .06em; }
+    .col-group { font-size: 9px !important; border-bottom: 1px solid var(--border) !important; text-align: center !important; }
+    thead th[data-col="date"] {  position: sticky;  left: 0 ; z-index: 11;   background: var(--navy-light); width: 100px !important;   min-width: 100px !important;   max-width: 100px !important;   left: 0 !important; }
+    thead th[data-col="heure"] {  position: sticky;  left: 90px;  z-index: 11;   background: var(--navy-light); width: 60px !important;   min-width: 60px !important;   left: 100px !important;   z-index: 11;}
+    thead th.col-group[data-group="meta"] {  position: sticky;  left: 0;  z-index: 12;  background: var(--navy-light);width: 160px; border-right: 1px solid var(--border);}
+    tbody tr { border-bottom: none; transition: background .1s; }
+    /* Bordure par défaut pour toutes les cellules */
+    tbody td { border-bottom: 1px solid var(--border); padding: 6px 8px; height: var(--cell-h); white-space: nowrap; color: var(--white); min-width: 50px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+
+     /* --- STYLES DES COLONNES SPÉCIFIQUES --- */
+     td.col-date { color: var(--gray); font-size: 10px; position: sticky; left: 0; background: var(--navy-mid); z-index: 2; width: min-content; white-space: nowrap; border-right: 1px solid var(--border); }
+     td.col-heure { color: var(--teal); position: sticky; left: 100px; font-size: 11px; background: var(--navy-mid); font-weight: 500; width: min-content;}
+
+     /* --- GROUPEMENT MATIN / APREM --- */
+     tr.creno-matin { background:  var(--row-matin-bg); }
+     tr.creno-aprem { background: var(--row-aprem-bg); }
+
+     /* Pas de bordure entre matin et aprem du même jour */
+     tr.creno-matin td { border-bottom: none !important; }
+
+     tbody tr:hover, tr:hover td.col-date { background: var(--navy-light); }
+
+    /* --- CONFLITS ET ÉDITION --- */
+    tr.conflict          { background: var(--red-dim)    !important; border-left: 3px solid var(--red); }
+    tr.conflict-accepted { background: var(--amber-dim)  !important; border-left: 3px solid var(--amber); }
+    tr.conflict-noncli   { background: var(--purple-dim) !important; border-left: 3px solid var(--purple); }
+    td.doctor-highlight  { background: var(--teal-dim); color: var(--teal) !important; font-weight: 500; }
+    .is-admin td.editable { cursor: pointer; border: 1px solid transparent; border-radius: 3px; transition: border-color .15s; }
+    .is-admin td.editable:hover { border-color: var(--amber); background: var(--amber-dim); }
+    td.editing { padding: 2px !important; }
+    td.editing input { width: 100%; height: 100%; font-family: 'DM Mono', monospace; font-size: 11px; background: var(--navy); color: var(--white); border: 1px solid var(--amber); border-radius: 3px; }
+    
+/* Fixe la largeur des colonnes Date et Heure dans le semainier */
+    #semainier-table .col-date {    width: 120px !important;    min-width: 120px !important;    max-width: 120px !important;}
+
+    #semainier-table th:nth-child(2), 
+    #semainier-table td:nth-child(2) {    width: 80px !important;    min-width: 80px !important;    max-width: 80px !important;     text-align: center;}
+    #semainier-table thead th {  position: sticky;  top: 62px;  z-index: 15;  background: var(--navy-mid);}
+    #semainier-table th.col-date {   z-index: 25;   left: 0;}
+    #semainier-controls {  padding: 15px 24px;  background: var(--navy-mid);  border-bottom: 1px solid var(--border);  display: flex;  align-items: center;   gap: 20px;  position: sticky;  top: 0;   z-index: 20;}
+
+    #abs-wrap { flex: 1; overflow: auto; position: relative; display: none; }
+    #abs-wrap table thead th { color: var(--purple); }
+    #abs-wrap table thead th.col-date { color: var(--gray); }
+    td.abs-CA     { background: #1e3a5f; color: #93c5fd; }
+    td.abs-CF     { background: #2d1b4e; color: var(--purple); }
+    td.abs-Ens    { background: #1a3a2a; color: #6ee7b7; }
+    td.abs-Rech   { background: #3a2a10; color: var(--amber); }
+    td.abs-Autre  { background: #2a1a1a; color: var(--red); }
+    td.abs-conflict {box-shadow: inset 0 0 0 2px var(--red); outline: 2px solid var(--red) !important; outline-offset: -2px; position: relative;}
+    td.abs-conflict::after { content: '⚠️'; position: absolute; top: 2px; right: 2px; font-size: 8px; }
+    #abs-legend { display: none; flex-wrap: wrap; gap: 8px; padding: 8px 24px; background: var(--navy-mid); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-family: 'DM Mono', monospace; font-size: 10px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+/* Highlight colonne au survol — subtil pour ne pas écraser les conflits */
+#table-body td.col-hover,
+#abs-body td.col-hover {
+  background: var(--navy-light) !important;
+}
+
+    #btn-add-absence {
+      position: fixed; bottom: 24px; left: 24px;
+      background: var(--purple); color: var(--navy);
+      font-weight: 700; font-size: 20px; line-height: 1;
+      width: 44px; height: 44px; border-radius: 50%;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(192,132,252,.5);
+      z-index: 50; border: none; cursor: pointer;
+    }
+    .is-admin.edit-mode #btn-add-absence { display: flex; }
+
+    #abs-modal { position: fixed; inset: 0; background: rgba(13,27,42,.9); display: none; align-items: center; justify-content: center; z-index: 200; }
+    #abs-modal.open { display: flex; }
+    .abs-modal-box { background: var(--navy-mid); border: 1px solid var(--purple); border-radius: 12px; padding: 32px; width: 380px; display: flex; flex-direction: column; gap: 16px; }
+    .abs-modal-box h3 { font-family: 'DM Mono', monospace; font-size: 14px; color: var(--purple); }
+    .abs-modal-box label { font-size: 11px; color: var(--gray); margin-bottom: 2px; display: block; }
+    .abs-modal-box select, .abs-modal-box input { width: 100%; background: var(--navy); border: 1px solid var(--border); color: var(--white); padding: 8px 10px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 11px; }
+    .abs-modal-box select:focus, .abs-modal-box input:focus { border-color: var(--purple); }
+    .abs-modal-row { display: flex; gap: 10px; }
+    .abs-modal-row > * { flex: 1; }
+
+    #edit-dropdown { position: fixed; z-index: 1000; background: var(--navy-mid); border: 1px solid var(--amber); border-radius: 8px; min-width: 140px; max-height: 220px; overflow-y: auto; box-shadow: 0 4px 16px rgba(0,0,0,.3); display: none; }
+    .dd-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--white); transition: background .1s; }
+    .dd-item:first-child { border-radius: 7px 7px 0 0; border-bottom: 1px solid var(--border);  margin-bottom: 4px;  
+background: rgba(248, 113, 113, 0.05); }
+    .dd-item:last-child  { border-radius: 0 0 7px 7px; }
+    .dd-item:hover, .dd-item.focused { background: var(--navy-light); }
+    .dd-item.hidden { display: none; }
+    .dd-count { font-size: 9px; color: var(--gray); background: var(--navy); border-radius: 3px; padding: 1px 5px; min-width: 22px; text-align: center; }
+    .dd-search-input {  width: 100%;  background: var(--navy);  border: none;  border-bottom: 1px solid var(--amber);  color: var(--white);  padding: 10px 12px;   font-family: 'DM Mono', monospace;   font-size: 11px;   outline: none; }
+    .dd-search-input::placeholder { color: var(--gray); font-style: italic; }
+
+    #loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: var(--navy); z-index: 5; }
+    .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--teal); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { font-size: 12px; color: var(--gray); }
+    #empty-state     { padding: 60px; text-align: center; color: var(--gray); font-size: 13px; display: none; }
+    #empty-state-abs { padding: 60px; text-align: center; color: var(--gray); font-size: 13px; display: none; }
+    #toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 300; }
+    .toast { font-family: 'DM Mono', monospace; font-size: 11px; padding: 10px 16px; border-radius: 8px; border-left: 3px solid var(--teal); background: var(--navy-mid); color: var(--white); animation: slideIn .3s ease; }
+    .toast.error   { border-color: var(--red); }
+    .toast.warning { border-color: var(--amber); }
+    .toast.purple  { border-color: var(--purple); }
+    @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+
+/* === MODAL PARAMÈTRES === */
+#settings-modal {
+  position: fixed; inset: 0;
+  background: rgba(13,27,42,.92);
+  display: none; align-items: center; justify-content: center;
+  z-index: 500;
+}
+#settings-modal.open { display: flex; }
+
+.settings-box {
+  background: var(--navy-mid);
+  border: 1px solid var(--teal);
+  border-radius: 12px;
+  padding: 28px 32px;
+  width: 480px; max-width: 95vw;
+  max-height: 85vh;
+  display: flex; flex-direction: column; gap: 20px;
+  overflow-y: auto;
+}
+.settings-box h3 {
+  font-family: 'DM Mono', monospace;
+  font-size: 14px; color: var(--teal);
+  display: flex; align-items: center; gap: 8px;
+}
+.settings-section {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.settings-section-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--gray);
+  letter-spacing: .08em; text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+}
+.settings-row label {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: var(--white);
+}
+.settings-row select {
+  background: var(--navy); border: 1px solid var(--border);
+  color: var(--white); padding: 6px 10px; border-radius: 6px;
+  font-family: 'DM Mono', monospace; font-size: 11px;
+}
+.settings-row select:focus { border-color: var(--teal); outline: none; }
+
+.settings-group-grid {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.settings-group-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 20px;
+  border: 1px solid var(--border);
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  cursor: pointer; opacity: 0.45;
+  transition: opacity .15s, border-color .15s;
+  user-select: none;
+}
+.settings-group-chip input { display: none; }
+.settings-group-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.settings-group-chip.active { opacity: 1; }
+
+.settings-toggle-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px; border-radius: 8px;
+  background: var(--navy); border: 1px solid var(--border);
+}
+.settings-toggle-row span {
+  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--white);
+}
+.settings-toggle-row .toggle-hint {
+  font-size: 10px; color: var(--gray); margin-top: 2px;
+}
+
+/* Toggle switch */
+.sw { position: relative; display: inline-block; width: 36px; height: 20px; flex-shrink: 0; }
+.sw input { opacity: 0; width: 0; height: 0; }
+.sw-slider {
+  position: absolute; inset: 0;
+  background: var(--border); border-radius: 20px;
+  transition: background .2s; cursor: pointer;
+}
+.sw-slider::before {
+  content: ''; position: absolute;
+  left: 3px; top: 3px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--gray); transition: transform .2s, background .2s;
+}
+.sw input:checked + .sw-slider { background: var(--teal-dim); border: 1px solid var(--teal); }
+.sw input:checked + .sw-slider::before { transform: translateX(16px); background: var(--teal); }
+
+.settings-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  border-top: 1px solid var(--border); padding-top: 16px; gap: 10px;
+}
+.settings-saved-hint {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  color: var(--teal); opacity: 0;
+  transition: opacity .4s;
+}
+.settings-saved-hint.show { opacity: 1; }
+
+/* === MODAL ANNONCES === */
+#annonces-modal {
+  position: fixed; inset: 0;
+  background: rgba(13,27,42,.92);
+  display: none; align-items: center; justify-content: center;
+  z-index: 600;  /* au-dessus de tout, y compris l'auth-overlay */
+}
+#annonces-modal.open { display: flex; }
+
+.annonces-box {
+  background: var(--navy-mid);
+  border: 1px solid var(--teal);
+  border-radius: 12px;
+  width: 520px; max-width: 95vw;
+  max-height: 80vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.annonces-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.annonces-header h3 {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px; color: var(--teal);
+  display: flex; align-items: center; gap: 8px;
+}
+.annonces-list {
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.annonce-item {
+  border-radius: 8px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--teal);
+  background: var(--navy);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.annonce-item.warning { border-left-color: var(--amber); }
+.annonce-item.urgent  { border-left-color: var(--red);   background: var(--red-dim); }
+
+.annonce-titre {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; font-weight: 600;
+  color: var(--teal);
+}
+.annonce-item.warning .annonce-titre { color: var(--amber); }
+.annonce-item.urgent  .annonce-titre { color: var(--red);   }
+
+.annonce-message {
+  font-size: 12px; color: var(--white); line-height: 1.6;
+}
+.annonce-date {
+  font-family: 'DM Mono', monospace;
+  font-size: 6px; color: var(--gray);
+}
+.annonces-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end;
+}
+
+[data-col="C_Periph"]   { border-left: 2px solid #FFF396 !important; }
+[data-col="HDJ1"]       { border-left: 2px solid #C9F07A !important; }
+[data-col="UNV1"]       { border-left: 2px solid #F0D37A !important; }
+[data-col="USI1"]       { border-left: 2px solid #F07AB5 !important; }
+[data-col="BIPv"]       { border-left: 2px solid #FFA89C !important; }
+[data-col="Garde"]      { border-left: 2px solid #E08924 !important; }
+[data-col="ReposGarde"] { border-left: 2px solid #F0FBFF !important; }
+[data-col="BOX1"]       { border-left: 2px solid #94a3b8 !important; }
+/* Séparateur horizontal entre chaque jour */
+tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
+
+  </style>
+</head>
+<body>
+
+<div id="auth-overlay">
+  <div class="auth-box">
+    <h2>Neurologie · Planning</h2>
+    <p> version 1.02</p>
+    <p>Entrez vos identifiants pour accéder au planning.</p>
+    <p>ID de test pour les viewer: 123 mdp 12345678</p>
+    <input type="text" id="auth-login" placeholder="Email aphp ou APH" autocomplete="off" />
+    <input type="password" id="auth-pass"  placeholder="Mot de passe" />
+    <div id="auth-error" style="color:var(--red);font-size:11px;display:none;">Identifiants incorrects.</div>
+    <button class="btn-primary" onclick="doLogin()">Connexion</button>
+    <p style="text-align:center; margin-top:8px; font-size:12px;">
+      <a href="#" onclick="showForgotPassword()" 
+        style="color:var(--accent); text-decoration:none;">
+        Mot de passe oublié ?
+      </a>
+    </p>
+  </div>
+</div>
+
+<!-- MODAL ANNONCES (avant auth) -->
+<div id="annonces-modal">
+  <div class="annonces-box">
+    <div class="annonces-header">
+      <h3>📢 Annonces de service</h3>
+      <button class="btn-ghost" onclick="closeAnnoncesModal()" style="font-size:11px">✕ Fermer</button>
+    </div>
+    <div class="annonces-list" id="annonces-list"></div>
+    <div class="annonces-footer">
+      <button class="btn-primary" onclick="closeAnnoncesModal()">J'ai lu ✓</button>
+    </div>
+  </div>
+</div>
+
+
+
+<div id="topbar">
+  <span class="brand">🧠 Planning Neurologie v.1.02</span>
+  <div class="controls">
+    <div id="status-dot"></div>
+    <span id="user-id-badge"></span>
+    <span id="realtime-badge">● LIVE</span>
+    <span id="admin-badge">ADMIN</span>
+    <button class="btn-ghost" style="font-size:11px" onclick="logout()">Déconnexion</button>
+    <div class="sep"></div>
+    <div id="brush-container" style="display:none; align-items:center; gap:8px;">
+      <button id="btn-brush" class="btn-ghost" onclick="toggleBrushMode()" title="Mode Pinceau">🖌️</button>
+      <div id="brush-picker-wrapper" style="display:none; position:relative;">
+        <input type="text" id="brush-value" placeholder="Valeur..." list="brush-suggestions" 
+           style="width:120px; height:32px; border-color:var(--purple);">
+        <datalist id="brush-suggestions"></datalist>
+      </div>
+    </div>
+    <button id="btn-toggle-edit" class="btn-ghost" style="display:none" onclick="toggleEditMode()">✏️ Modifier</button>
+    <button id="btn-save-all"    class="btn-save"  style="display:none" onclick="saveAllPending()">💾 Sauvegarder</button>
+    <div class="sep"></div>
+<button class="btn-ghost" onclick="refreshAll()">↺</button>
+<button id="btn-conflicts-bell" class="btn-ghost" onclick="openConflictManager()" 
+  title="Mes conflits" style="display:none; position:relative;">
+  🔔
+  <span id="bell-badge" style="
+    position:absolute; top:-4px; right:-4px;
+    background:var(--red); color:white;
+    border-radius:50%; width:16px; height:16px;
+    font-size:9px; display:none;
+    align-items:center; justify-content:center;
+    font-family:'DM Mono',monospace;">0</span>
+</button>
+    <button class="btn-ghost" onclick="openSettingsModal()" title="Préférences">⚙️</button>
+    <button onclick="toggleTheme()" id="theme-btn" style="margin: 10px; cursor: pointer;" class="btn-ghost">
+                         🌓 Clair/Obscur
+           </button>
+    
+  </div>
+</div>
+
+<div id="tabs-bar">
+  <button class="tab-btn tab-planning active" onclick="switchTab('planning')">🏥 Planning clinique</button>
+  <button class="tab-btn tab-absences"        onclick="switchTab('absences')">🌴 Absences / Non clinique</button>
+  <button class="tab-btn tab-semainier"         onclick="switchTab('semainier')">📅 Semainier </button>
+</div>
+
+<div id="toolbar">
+  <button id="toolbar-toggle-btn" onclick="toggleToolbarFilters()" title="Masquer les filtres">▲</button>
+     <div id="toolbar-filters"> 
+     <label>Du</label>
+     <input type="date" id="filter-date-from" onchange="onFilterChange()" />
+     <label>Au</label>
+     <input type="date" id="filter-date-to"   onchange="onFilterChange()" />
+     <input type="text" id="search-doctor" placeholder="🔍 Médecin…" oninput="onFilterChange()" />
+
+     <div id="toolbar-planning-extras">
+       <div class="sep"></div>
+           <label class="group-toggle" id="toggle-internes-wrap" >
+                 <input type="checkbox" id="chk-show-internes" onchange="toggleInternesVisibility()">
+                 <span class="dot"></span> Internes
+           </label>
+           <div class="sep"></div>
+       <label style="font-size:11px;color:var(--teal)">Afficher :</label>
+       <div id="col-toggles"></div>
+     </div>
+
+     <div id="toolbar-absences-extras">
+       <div class="sep"></div>
+       <label style="font-size:11px;color:var(--purple)">Type :</label>
+       <div id="abs-type-toggles" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+     </div>
+
+     <div class="sep"></div>
+     <button class="btn-ghost" onclick="clearFilters()" style="font-size:11px">✕ Réinitialiser</button>
+  </div> 
+</div>
+
+<div id="abs-legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#1e3a5f"></div><span style="color:#93c5fd">Vacances</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2d1b4e"></div><span style="color:var(--purple)">Formation</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#1a3a2a"></div><span style="color:#6ee7b7">Cours</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3a2a10"></div><span style="color:var(--amber)">Recherche</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2a1a1a"></div><span style="color:var(--red)">Autre</span></div>
+</div>
+
+<div id="main">
+  <div id="content-wrap">
+    <div id="table-wrap">
+      <div id="loading"><div class="spinner"></div><p>Connexion à Supabase…</p></div>
+      <div id="empty-state">Aucune ligne ne correspond aux filtres.</div>
+      <table id="planning-table">
+        <thead id="table-head"></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+
+    <div id="abs-wrap">
+      <div id="empty-state-abs">Aucune absence sur cette période.</div>
+      <table id="abs-table">
+        <thead id="abs-head"></thead>
+        <tbody id="abs-body"></tbody>
+      </table>
+    </div>
+
+    <div id="semainier-wrap" style="display:none; flex:1; overflow:auto;">
+    <div id="semainier-controls" style="padding: 15px 24px; background: var(--navy-mid); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 20px;">
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                          <label style="color: var(--teal); font-family: 'DM Mono'; font-size: 11px;">Médecin 1 :</label>
+                          <select id="select-semainier-doc-1" onchange="renderSemainier()" style="background: var(--navy); color: var(--white); border: 1px solid var(--teal); padding: 4px 8px; border-radius: 6px; font-family: 'DM Mono';"></select>
+                  </div>
+    
+                  <div style="width: 1px; height: 20px; background: var(--border);"></div>
+
+                  <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="color: var(--purple); font-family: 'DM Mono'; font-size: 11px;">Médecin 2 :</label>
+                            <select id="select-semainier-doc-2" onchange="renderSemainier()" style="background: var(--navy); color: var(--white); border: 1px solid var(--purple); padding: 4px 8px; border-radius: 6px; font-family: 'DM Mono';"></select>
+                   </div>
+            </div>
+               <table id="semainier-table">
+               <thead>
+                        <tr>
+                               <th rowspan="2" class="col-date">Date</th>
+                               <th rowspan="2">Heure</th>
+                               <th id="header-doc-1" style="text-align:center; background: rgba(45, 212, 191, 0.1); color: var(--teal); border-bottom: 1px solid var(--teal);">Médecin 1</th>
+                               <th id="header-doc-2" style="text-align:center; background: rgba(192, 132, 252, 0.1); color: var(--purple); border-bottom: 1px solid var(--purple);">Médecin 2</th>
+                        </tr>
+                        <tr>
+                               <th style="font-size: 9px; text-align:center;">Activités / Absences</th>
+                               <th style="font-size: 9px; text-align:center;">Activités / Absences</th>
+                        </tr>
+                </thead>
+                 <tbody id="semainier-body"></tbody>
+              </table>
+         </div>
+  </div>
+
+  <div id="stats-panel">
+    <div class="panel-title">
+      <span>Compteurs</span>
+      <button id="stats-toggle-btn" onclick="toggleStatsPanel()">›</button>
+    </div>
+    <div id="stats-content">
+      <div id="stats-list"></div>
+      <div id="conflict-summary">
+        Conflits cliniques : <span class="conf-count" id="conflict-count">0</span><br>
+        Conflits non-clin. : <span class="conf-count-noncli" id="conflict-count-noncli">0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button id="btn-add-absence" title="Ajouter une absence" onclick="openAbsModal()">+</button>
+
+<div id="abs-modal">
+  <div class="abs-modal-box">
+    <h3 id="abs-modal-title">Nouvelle absence</h3>
+
+    <div>
+      <label>Médecin</label>
+      <select id="abs-medecin"></select>
+    </div>
+    <div class="abs-modal-row">
+      <div>
+        <label>Du</label>
+        <input type="date" id="abs-date-from" />
+      </div>
+      <div>
+        <label>Au</label>
+        <input type="date" id="abs-date-to" />
+      </div>
+    </div>
+    <div>
+      <label>Type</label>
+      <select id="abs-type">
+        <option value="CA">🏖️ Vacances (CA)</option>
+        <option value="CF">📚 Formation (CF)</option>
+        <option value="Ens">🎓 Cours (Ens)</option>
+        <option value="Rech">🔬 Recherche (Rech)</option>
+        <option value="Autre">📌 Autre</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn-primary" style="flex:1" onclick="saveAbsence()">Valider</button>
+      <button id="btn-delete-absence" class="btn-danger" style="display:none" onclick="deleteAbsence()">Supprimer</button>
+      <button class="btn-ghost" onclick="closeAbsModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PARAMÈTRES UTILISATEUR -->
+<div id="settings-modal">
+  <div class="settings-box">
+
+    <h3>⚙️ Mes préférences</h3>
+  <button onclick="showChangePassword()" class="btn-ghost">🔑 Changer MDP</button>
+    <!-- Onglet par défaut -->
+    <div class="settings-section">
+      <div class="settings-section-title">Onglet à l'ouverture</div>
+      <div class="settings-row">
+        <label>Afficher en premier</label>
+        <select id="pref-default-tab">
+          <option value="planning">🏥 Planning clinique</option>
+          <option value="absences">🌴 Absences / Non clinique</option>
+          <option value="semainier">📅 Semainier</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Colonnes visibles par défaut -->
+    <div class="settings-section">
+      <div class="settings-section-title">Colonnes affichées par défaut</div>
+      <div class="settings-group-grid" id="pref-group-grid"></div>
+    </div>
+
+    <!-- Options -->
+    <div class="settings-section">
+      <div class="settings-section-title">Options</div>
+
+      <div class="settings-toggle-row">
+        <div>
+          <span>Afficher les internes</span>
+          <div class="toggle-hint">Colonnes _int1 / _int2</div>
+        </div>
+        <label class="sw">
+          <input type="checkbox" id="pref-show-internes">
+          <span class="sw-slider"></span>
+        </label>
+      </div>
+
+      <div class="settings-toggle-row">
+        <div>
+          <span>Thème clair</span>
+          <div class="toggle-hint">Mode Clair/Obscur 🌓</div>
+
+        </div>
+        <label class="sw">
+          <input type="checkbox" id="pref-theme-light">
+          <span class="sw-slider"></span>
+        </label>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="settings-footer">
+      <span class="settings-saved-hint" id="settings-saved-hint">✓ Préférences enregistrées</span>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn-ghost" onclick="closeSettingsModal()">Annuler</button>
+        <button class="btn-primary" onclick="saveUserPreferences()">💾 Enregistrer</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODALE CENTRE DE NOTIFICATIONS -->
+<div id="conflict-manager-modal" style="
+  position:fixed; inset:0;
+  background:rgba(13,27,42,.92);
+  display:none; align-items:center; justify-content:center;
+  z-index:9998;">
+  <div id="notif-modal-box" style="
+    background:var(--navy-mid);
+    border:2px solid var(--red);
+    border-radius:12px;
+    padding:0;
+    width:560px; max-width:95vw;
+    max-height:85vh;
+    display:flex; flex-direction:column;
+    box-shadow: 0 8px 32px rgba(248,113,113,.25);">
+
+    <!-- Header -->
+    <div style="
+      display:flex; justify-content:space-between; align-items:center;
+      padding:18px 24px 0; ">
+      <h3 id="conflict-manager-title" style="
+        font-family:'DM Mono',monospace; font-size:15px; color:var(--red);">
+        🔔 Notifications
+      </h3>
+      <button class="btn-ghost" onclick="closeConflictManager()">✕</button>
+    </div>
+
+    <!-- Onglets -->
+    <div style="
+      display:flex; gap:0; padding:12px 24px 0;
+      border-bottom:1px solid var(--border);">
+      <button id="notif-tab-conflicts" onclick="switchNotifTab('conflicts')" style="
+        font-family:'DM Mono',monospace; font-size:11px;
+        padding:6px 16px; border:1px solid var(--border);
+        border-bottom:none; border-radius:6px 6px 0 0;
+        background:var(--navy); color:var(--white);
+        cursor:pointer; position:relative; bottom:-1px;">
+        ⚠️ Conflits
+        <span id="notif-tab-conflicts-badge" style="
+          display:none; margin-left:6px;
+          background:var(--red); color:white;
+          border-radius:10px; padding:1px 6px;
+          font-size:9px;">0</span>
+      </button>
+      <button id="notif-tab-annonces" onclick="switchNotifTab('annonces')" style="
+        font-family:'DM Mono',monospace; font-size:11px;
+        padding:6px 16px; border:1px solid var(--border);
+        border-bottom:none; border-radius:6px 6px 0 0;
+        background:var(--navy); color:var(--gray);
+        cursor:pointer; position:relative; bottom:-1px; margin-left:4px;">
+        📢 Annonces
+        <span id="notif-tab-annonces-badge" style="
+          display:none; margin-left:6px;
+          background:var(--teal); color:var(--navy);
+          border-radius:10px; padding:1px 6px;
+          font-size:9px;">0</span>
+      </button>
+    </div>
+
+    <!-- Contenu onglet Conflits -->
+    <div id="notif-panel-conflicts" style="
+      flex:1; overflow-y:auto; padding:16px 24px;
+      display:flex; flex-direction:column; gap:8px;">
+      <p id="conflict-manager-subtitle" style="
+        font-family:'DM Mono',monospace; font-size:11px; color:var(--gray);"></p>
+      <div id="conflict-manager-list" style="
+        display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+
+    <!-- Contenu onglet Annonces -->
+    <div id="notif-panel-annonces" style="
+      flex:1; overflow-y:auto; padding:16px 24px;
+      display:none; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:flex-end; margin-bottom:4px;">
+        <button class="btn-ghost" onclick="markAllAnnoncesRead()" 
+          style="font-size:10px; font-family:'DM Mono',monospace;">
+          ✓ Tout marquer comme lu
+        </button>
+      </div>
+      <div id="annonces-tab-list" style="
+        display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+
+    <!-- Footer -->
+    <div style="
+      border-top:1px solid var(--border); padding:12px 24px;
+      display:flex; justify-content:flex-end;">
+      <button class="btn-ghost" onclick="closeConflictManager()">Fermer</button>
+    </div>
+
+  </div>
+</div>
+
+<div id="edit-dropdown"></div>
+<div id="toast-container"></div>
+
+<script>
+const SUPABASE_URL = 'https://yseaujinbdwxpcelsywr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_7uC727-tO92zxGsAwCqBnA_E9oX_Xw8';
+const _supabase    = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+_supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    showChangePassword();
+  }
+});
+
+const ABS_TYPES = ['CA', 'CF', 'Ens', 'Rech', 'Autre'];
+
+const COLUMNS = [
+  { key: 'date',       label: 'Date',     group: 'meta'   },
+  { key: 'heure',      label: 'Heure',    group: 'meta'   },
+  { key: 'C_Periph',   label: 'C.Périph', group: 'neurog' },
+  { key: 'C_Cogn',     label: 'C.Cogn',  group: 'neurog' },
+  { key: 'C_sup',      label: 'C.Sup',   group: 'neurog' },
+  { key: 'C_int1',     label: 'C.int1',   group: 'neurog' },
+  { key: 'C_int2',     label: 'C.int2',   group: 'neurog' },
+  { key: 'HDJ1',       label: 'HDJ 1',   group: 'hdj'    },
+  { key: 'HDJ2',       label: 'HDJ 2',   group: 'hdj'    },
+  { key: 'HDJ3',       label: 'HDJ 3',   group: 'hdj'    },
+  { key: 'HDJ_int1',   label: 'HDJint1',   group: 'hdj'    },
+  { key: 'HDJ_int2',   label: 'HDJint2',   group: 'hdj'    },
+  { key: 'UNV1',       label: 'UNV 1',   group: 'unv'    },
+  { key: 'UNV2',       label: 'UNV 2',   group: 'unv'    },
+  { key: 'UNV_int1',    label: 'UNVint1',   group: 'unv'    },
+  { key: 'UNV_int2',    label: 'UNVint2',   group: 'unv'    },
+  { key: 'USI1',       label: 'USI 1',   group: 'usi'    },
+  { key: 'USI2',       label: 'USI 2',   group: 'usi'    },
+  { key: 'USI_int1',       label: 'USIint1',   group: 'usi'    },
+  { key: 'USI_int2',       label: 'USIint2',   group: 'usi'    },
+  { key: 'BIPv',       label: 'BIP v',   group: 'bip'    },
+  { key: 'BIPng',      label: 'BIP ng',  group: 'bip'    },
+  { key: 'BIP_int',      label: 'BIPint',  group: 'bip'    },
+  { key: 'SAU',        label: 'SAU',  group: 'bip'    },
+  { key: 'Garde',      label: 'Garde',   group: 'garde'  },
+  { key: 'Garde_int',      label: 'GardeInt',   group: 'garde'  },
+  { key: 'Astr',       label: 'Astr',    group: 'garde'  },
+  { key: 'Astr_int',       label: 'AstrInt',    group: 'garde'  },
+  { key: 'ReposGarde', label: 'R.Garde', group: 'repos'  },
+  { key: 'BOX1',       label: 'BOX 1',   group: 'box'    },
+  { key: 'BOX2',       label: 'BOX 2',   group: 'box'    },
+  { key: 'BOX3',       label: 'BOX 3',   group: 'box'    },
+  { key: 'BOX4',       label: 'BOX 4',   group: 'box'    },
+  { key: 'BOX5',       label: 'BOX 5',   group: 'box'    },
+  { key: 'BOX6',       label: 'BOX 6',   group: 'box'    },
+  { key: 'BOX7',       label: 'BOX 7',   group: 'box'    },
+  { key: 'BOX8',       label: 'BOX 8',   group: 'box'    },
+  { key: 'BOX9',       label: 'BOX 9',   group: 'box'    },
+];
+
+const GROUP_LABELS = { neurog:'NeuroG', hdj:'HDJ', unv:'UNV', usi:'USI', bip:'BIP', garde:'Garde', repos:'R.Garde', box:'BOX' };
+const GROUP_COLORS = { neurog:'#FFF396', hdj:'#C9F07A', unv:'#F0D37A', usi:'#F07AB5', bip:'#FFA89C', garde:'#E08924', repos:'#F0FBFF', box:'#94a3b8' };
+const CONFLICT_IGNORE_COLS = ['Garde', 'SAU'];
+
+const groupMap   = {};
+COLUMNS.filter(c => c.group !== 'meta').forEach(col => {
+  if (!groupMap[col.group]) groupMap[col.group] = [];
+  groupMap[col.group].push(col.key);
+});
+const DOCTOR_COLS = COLUMNS.filter(c => c.group !== 'meta').map(c => c.key);
+const visibleCols = {};
+COLUMNS.forEach(col => { visibleCols[col.key] = true; });
+
+let currentUser         = null;
+let allData             = [];
+let absencesData        = [];
+let currentFilteredRows = [];
+let currentFilteredAbs  = [];
+let pendingEdits        = {};
+let   pendingEditsAbs             =  {};
+let isEditMode          = false;
+let realtimeSub         = null;
+let realtimeAbsSub      = null;
+let doctorFilter        = null;
+let activeInput         = null;
+let listeMedecins       = [];
+let absenceColNames     = [];
+let acceptedConflicts   = {};
+let conflictAcceptances = [];
+let currentTab          = 'planning';
+let absVisibleTypes     = new Set(ABS_TYPES);
+let editingAbsenceId    = null;
+let showInternes = false;
+let isBrushMode = false;
+let allAnnonces = [];
+
+async function doLogin() {
+  const input  = document.getElementById('auth-login').value.trim();
+  const pass   = document.getElementById('auth-pass').value;
+  const errEl  = document.getElementById('auth-error');
+  errEl.style.display = 'none';
+
+  let email = input;
+
+  // Si ce n'est pas un email, on passe par la RPC de lookup
+  if (!input.includes('@')) {
+    const { data: foundEmail, error: lookupError } = await _supabase
+      .rpc('get_email_from_hospital_id', { h_id: input });
+
+    if (lookupError || !foundEmail) {
+      errEl.textContent = 'Identifiant inconnu.';
+      errEl.style.display = 'block';
+      return;
+    }
+    email = foundEmail;
+  }
+
+  const { data, error } = await _supabase.auth.signInWithPassword({
+    email, password: pass
+  });
+
+  if (error) {
+    errEl.textContent = 'Mot de passe incorrect.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  await applySession(data.session);
+}
+
+async function loadConflictAcceptances() {
+  const { data, error } = await _supabase
+    .from('conflict_acceptances')
+    .select('*');
+  if (error) { 
+    toast('Erreur chargement acceptances : ' + error.message, 'error'); 
+    return; 
+  }
+  conflictAcceptances = data || [];
+}
+
+async function loadAnnonces() {
+  const today = new Date().toISOString().split('T')[0];
+
+  const { data, error } = await _supabase
+    .from('annonces')
+    .select('*')
+    .gte('date_expiration', today)
+    .order('priorite', { ascending: false })
+    .order('date_creation', { ascending: false });
+
+  if (error || !data) return;
+  allAnnonces = data;
+}
+
+// ── Retourne les IDs d'annonces déjà lues pour cet utilisateur ──
+function getReadAnnonces() {
+  if (!currentUser?.login) return [];
+  const key = `read_annonces_${currentUser.login}`;
+  try {
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  } catch { return []; }
+}
+
+// ── Marque une annonce comme lue ──
+function markAnnonceRead(id) {
+  if (!currentUser?.login) return;
+  const key  = `read_annonces_${currentUser.login}`;
+  const read = getReadAnnonces();
+  if (!read.includes(id)) {
+    read.push(id);
+    localStorage.setItem(key, JSON.stringify(read));
+  }
+  updateBellBadge();
+  renderAnnoncesTab(); // rafraîchit l'onglet si ouvert
+}
+
+// ── Marque toutes les annonces non urgentes comme lues ──
+function markAllAnnoncesRead() {
+  allAnnonces
+    .filter(a => a.priorite !== 'urgent')
+    .forEach(a => markAnnonceRead(a.id));
+  updateBellBadge();
+  renderAnnoncesTab();
+}
+
+// ── Compte les annonces non lues (hors urgentes déjà vues) ──
+function countUnreadAnnonces() {
+  const read = getReadAnnonces();
+  return allAnnonces.filter(a => !read.includes(a.id)).length;
+}
+
+// ── Affiche la popup pour les annonces urgentes non lues ──
+function showUrgentAnnonces() {
+  const read = getReadAnnonces();
+  const urgentes = allAnnonces.filter(a =>
+    a.priorite === 'urgent' && !read.includes(a.id)
+  );
+  if (urgentes.length === 0) return;
+
+  const list = document.getElementById('annonces-list');
+  list.innerHTML = '';
+  urgentes.forEach(a => {
+    const item = document.createElement('div');
+    item.className = 'annonce-item urgent';
+    const dateExp = new Date(a.date_expiration + 'T00:00:00')
+      .toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+    item.innerHTML = `
+      ${a.titre ? `<div class="annonce-titre">${a.titre}</div>` : ''}
+      <div class="annonce-message">${a.message}</div>
+      <div class="annonce-date">Jusqu'au ${dateExp}</div>
+    `;
+    list.appendChild(item);
+  });
+
+  document.getElementById('annonces-modal').classList.add('open');
+}
+
+// ── Fermer la popup urgente et marquer ces annonces comme lues ──
+function closeAnnoncesModal() {
+  const read = getReadAnnonces();
+  allAnnonces
+    .filter(a => a.priorite === 'urgent' && !read.includes(a.id))
+    .forEach(a => markAnnonceRead(a.id));
+  document.getElementById('annonces-modal').classList.remove('open');
+  updateBellBadge();
+}
+function closeAnnoncesModal() {
+  document.getElementById('annonces-modal').classList.remove('open');
+}
+
+async function applySession(session) {
+  const { data: profile, error } = await _supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', session.user.id)
+    .single();
+
+  if (error || !profile) {
+    toast('Profil introuvable. Contactez l\'administrateur.', 'error');
+    await _supabase.auth.signOut();
+    return;
+  }
+
+  currentUser = {
+    login:       profile.hospital_id,
+    email:       profile.email,
+    initiales:            profile.initiales,
+    role:        profile.role,
+    permissions: profile.permissions
+  }
+
+
+if (profile.preferences) {
+  window._userPrefs = profile.preferences;
+} else {
+  window._userPrefs = {};
+};
+
+ window.userPermissions = profile.permissions;
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('auth-error').style.display   = 'none';
+
+  if (profile.role === 'admin') {
+    document.getElementById('btn-toggle-edit').style.display = 'inline';
+    document.body.classList.add('is-admin');
+  } else {
+          // Sécurité : on s'assure que la classe n'est pas là si ce n'est pas un admin
+          document.body.classList.remove('is-admin');
+          document.getElementById('btn-toggle-edit').style.display = 'none';
+          document.getElementById('btn-save-all').style.display = 'none';
+          document.getElementById('stats-panel').classList.add('hidden');
+     }
+  const userBadge = document.getElementById('user-id-badge');
+  if (userBadge) { userBadge.textContent = profile.hospital_id; userBadge.style.display = 'inline'; }
+  window._userPrefs = profile.preferences || {};
+  init();
+}
+
+
+document.getElementById('auth-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// ─── PRÉFÉRENCES UTILISATEUR ────────────────────────────────────────────────
+
+function applyUserPreferences(prefs) {
+  if (!prefs || Object.keys(prefs).length === 0) return;
+
+  // Onglet par défaut
+  if (prefs.default_tab) {
+    switchTab(prefs.default_tab);
+  }
+
+  // Groupes de colonnes visibles
+  if (Array.isArray(prefs.visible_groups)) {
+    Object.keys(groupMap).forEach(group => {
+      const isVisible = prefs.visible_groups.includes(group);
+      groupMap[group].forEach(key => { visibleCols[key] = isVisible; });
+    });
+    // Sync visuel des toggles dans la toolbar
+    document.querySelectorAll('#col-toggles .group-toggle').forEach(label => {
+      const group = label.dataset.group;
+      if (!group) return;
+      const cb = label.querySelector('input');
+      const isActive = prefs.visible_groups.includes(group);
+      cb.checked = isActive;
+      label.classList.toggle('active', isActive);
+    });
+    applyColVisibility();
+  }
+
+  // Internes
+  if (typeof prefs.show_internes === 'boolean') {
+    showInternes = prefs.show_internes;
+    const chk = document.getElementById('chk-show-internes');
+    if (chk) chk.checked = showInternes;
+    toggleInternesVisibility();
+  }
+
+  // Thème
+  if (prefs.theme === 'light') {
+    document.body.classList.add('light-mode');
+  } else if (prefs.theme === 'dark') {
+    document.body.classList.remove('light-mode');
+  }
+}
+
+function openSettingsModal() {
+  const prefs = window._userPrefs || {};
+
+  // Onglet par défaut
+  const tabSelect = document.getElementById('pref-default-tab');
+  tabSelect.value = prefs.default_tab || currentTab;
+
+  // Grille des groupes
+  const grid = document.getElementById('pref-group-grid');
+  grid.innerHTML = '';
+  const activeGroups = Array.isArray(prefs.visible_groups)
+    ? prefs.visible_groups
+    : Object.keys(groupMap); // tout visible si pas encore de prefs
+
+  Object.keys(groupMap).forEach(group => {
+    const isActive = activeGroups.includes(group);
+    const chip = document.createElement('label');
+    chip.className = 'settings-group-chip' + (isActive ? ' active' : '');
+    chip.style.color       = GROUP_COLORS[group] || 'var(--white)';
+    chip.style.borderColor = GROUP_COLORS[group] || 'var(--border)';
+    chip.dataset.group = group;
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = isActive;
+    cb.addEventListener('change', () => {
+      chip.classList.toggle('active', cb.checked);
+    });
+
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+
+    chip.appendChild(cb);
+    chip.appendChild(dot);
+    chip.appendChild(document.createTextNode(GROUP_LABELS[group] || group));
+    grid.appendChild(chip);
+  });
+
+  // Toggle internes
+  document.getElementById('pref-show-internes').checked =
+    typeof prefs.show_internes === 'boolean' ? prefs.show_internes : showInternes;
+
+  // Toggle thème
+  document.getElementById('pref-theme-light').checked =
+    prefs.theme === 'light' || document.body.classList.contains('light-mode');
+
+  // Reset hint
+  const hint = document.getElementById('settings-saved-hint');
+  hint.classList.remove('show');
+
+  document.getElementById('settings-modal').classList.add('open');
+}
+
+function closeSettingsModal() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+async function saveUserPreferences() {
+  // Lire les valeurs du modal
+  const defaultTab = document.getElementById('pref-default-tab').value;
+
+  const visibleGroups = [];
+  document.querySelectorAll('#pref-group-grid .settings-group-chip input').forEach(cb => {
+    const group = cb.closest('label').dataset.group;
+    if (cb.checked && group) visibleGroups.push(group);
+  });
+
+  const showInts  = document.getElementById('pref-show-internes').checked;
+  const themeLight = document.getElementById('pref-theme-light').checked;
+
+  const prefs = {
+    default_tab:    defaultTab,
+    visible_groups: visibleGroups,
+    show_internes:  showInts,
+    theme:          themeLight ? 'light' : 'dark'
+  };
+
+  // Appliquer immédiatement
+  applyUserPreferences(prefs);
+
+  // Sauvegarder en base
+  const { data: { user } } = await _supabase.auth.getUser();
+  const { error } = await _supabase
+    .from('profiles')
+    .update({ preferences: prefs })
+    .eq('id', user.id);
+
+  if (error) {
+    toast('Erreur sauvegarde préférences : ' + error.message, 'error');
+    return;
+  }
+
+  window._userPrefs = prefs;
+
+  // Feedback visuel dans le modal + fermeture auto
+  const hint = document.getElementById('settings-saved-hint');
+  hint.classList.add('show');
+  setTimeout(() => closeSettingsModal(), 1200);
+}
+
+
+async function logout() {
+  if (realtimeSub)    _supabase.removeChannel(realtimeSub);
+  if (realtimeAbsSub) _supabase.removeChannel(realtimeAbsSub);
+  closeDropdown(); closeAbsModal();
+  await _supabase.auth.signOut();
+  currentUser = null; isEditMode = false; pendingEdits = {}; pendingEditsAbs = {}; allData = []; absencesData = [];
+  document.body.classList.remove('is-admin');
+  document.getElementById('auth-overlay').style.display = 'flex';
+  document.getElementById('auth-login').value = '';
+  document.getElementById('auth-pass').value  = '';
+  document.getElementById('status-dot').className = '';
+  document.getElementById('realtime-badge').classList.remove('active');
+  document.getElementById('stats-panel').classList.remove('hidden');
+  const userBadge = document.getElementById('user-id-badge');
+  if (userBadge) { userBadge.textContent = ''; userBadge.style.display = 'none'; }
+  const btn = document.getElementById('btn-toggle-edit');
+  btn.textContent = "✏️ Modifier";
+  btn.classList.replace('btn-danger', 'btn-ghost');
+  btn.style.display = 'none';
+}
+
+function showForgotPassword() {
+  document.getElementById('auth-overlay').innerHTML = `
+    <div class="auth-box">
+      <h2>🔑 Réinitialiser le mot de passe</h2>
+      <p style="font-size:13px;color:var(--text-muted)">
+        Entrez votre identifiant hôpital. Vous recevrez un email pour choisir un nouveau mot de passe.
+      </p>
+      <input type="text" id="reset-hospital-id" placeholder="Identifiant hôpital (APH)" />
+      <div id="reset-error"   style="color:var(--red);font-size:11px;display:none;"></div>
+      <div id="reset-success" style="color:var(--green);font-size:12px;display:none;"></div>
+      <button class="btn-primary" onclick="sendResetEmail()">Envoyer le lien</button>
+      <p style="text-align:center;margin-top:8px;font-size:12px;">
+        <a href="#" onclick="location.reload()" 
+           style="color:var(--accent);text-decoration:none;">← Retour</a>
+      </p>
+    </div>`;
+}
+
+async function sendResetEmail() {
+  const hospitalId = document.getElementById('reset-hospital-id').value.trim();
+  const errEl = document.getElementById('reset-error');
+  const okEl = document.getElementById('reset-success');
+  
+  if (!hospitalId) {
+    errEl.textContent = 'Veuillez entrer un identifiant.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const { data: email, error: lookupError } = await _supabase
+    .rpc('get_email_from_hospital_id', { h_id: hospitalId });
+
+  if (lookupError || !email) {
+    errEl.textContent = 'Identifiant inconnu.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const { error } = await _supabase.auth.resetPasswordForEmail(email, {redirectTo: window.location.href.split('#')[0]});
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = 'block';
+  } else {
+    okEl.textContent = 'Email envoyé !';
+    okEl.style.display = 'block';
+  }
+}
+
+
+function showChangePassword() {
+  // Petit modal inline
+  const modal = document.createElement('div');
+  modal.id = 'change-pass-modal';
+  modal.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.5);
+    display:flex;align-items:center;justify-content:center;z-index:9999`;
+  modal.innerHTML = `
+    <div class="auth-box" style="max-width:340px;width:100%">
+      <h2>🔑 Changer mon mot de passe</h2>
+      <input type="password" id="cp-new"     placeholder="Nouveau mot de passe (8 car. min.)" />
+      <input type="password" id="cp-confirm" placeholder="Confirmer" style="margin-top:8px"/>
+      <div id="cp-error" style="color:var(--red);font-size:11px;display:none;margin-top:6px;"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-primary"  onclick="doChangePassword()">Enregistrer</button>
+        <button class="btn-ghost"    onclick="document.getElementById('change-pass-modal').remove()">Annuler</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function doChangePassword() {
+  const pass    = document.getElementById('cp-new').value;
+  const confirm = document.getElementById('cp-confirm').value;
+  const errEl   = document.getElementById('cp-error');
+
+  if (pass.length < 8) {
+    errEl.textContent = 'Minimum 8 caractères.'; errEl.style.display = 'block'; return;
+  }
+  if (pass !== confirm) {
+    errEl.textContent = 'Les mots de passe ne correspondent pas.'; errEl.style.display = 'block'; return;
+  }
+
+  const { error } = await _supabase.auth.updateUser({ password: pass });
+  if (error) {
+    errEl.textContent = error.message; errEl.style.display = 'block'; return;
+  }
+
+  document.getElementById('change-pass-modal').remove();
+  toast('✓ Mot de passe mis à jour');
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.tab-${tab}`).classList.add('active');
+  document.getElementById('table-wrap').style.display = tab === 'planning' ? 'block' : 'none';
+  document.getElementById('abs-wrap').style.display   = tab === 'absences' ? 'block' : 'none';
+  document.getElementById('toolbar-planning-extras').style.display = (tab === 'planning' || tab === 'semainier') ? 'flex' : 'none';
+  document.getElementById('toolbar-absences-extras').style.display = tab === 'absences' ? 'flex' : 'none';
+  document.getElementById('abs-legend').style.display    = tab === 'absences' ? 'flex' : 'none';
+  document.getElementById('btn-add-absence').style.display = (tab === 'absences' && currentUser?.role === 'admin') ? 'flex' : 'none';
+  onFilterChange();
+}
+
+async function init() {
+  const today = new Date();
+     const future = new Date();
+     future.setDate(today.getDate() + 100);
+     const formatDateISO = (d) => d.toISOString().split('T')[0];  
+  document.getElementById('filter-date-from').value = formatDateISO(today);
+     document.getElementById('filter-date-to').value = formatDateISO(future);
+
+  await loadEquipe();
+    // Remplissage dynamique des colonnes à ignorer pour les conflits
+  COLUMNS.forEach(col => {
+          if (col.key.endsWith('_int') || col.key.endsWith('_int1') || col.key.endsWith('_int2')) {
+              if (!CONFLICT_IGNORE_COLS.includes(col.key)) {
+                  CONFLICT_IGNORE_COLS.push(col.key);
+               }
+           }
+       });
+  document.getElementById('chk-show-internes').checked = showInternes;
+  populateSemainierDocs();
+  buildTableHeader();
+  buildColToggles();
+  buildAbsTypeToggles();
+  populateAbsModal();
+  await loadData();
+  await loadAbsences();
+  await loadConflictAcceptances();
+  await loadAnnonces();
+checkUpcomingConflicts();
+updateBellBadge();
+
+// Ouvre automatiquement sur l'onglet annonces si des annonces non lues existent
+if (countUnreadAnnonces() > 0) {
+  openConflictManager(true, 'annonces');
+}
+  subscribeRealtime();
+  subscribeRealtimeAbsences();
+  toggleInternesVisibility();
+  applyUserPreferences(window._userPrefs);
+  attachColHover();
+}
+
+async function refreshAll() {
+  showLoading(true);
+  await loadData();      // Recharge le planning
+  await loadAbsences();  // Recharge les absences
+  toast('Données actualisées', 'info');
+  showLoading(false);
+}
+
+async function loadEquipe() {
+  const { data, error } = await _supabase.from('neurologues').select('*').order('initiales');
+  if (!error && data) {
+    listeMedecins = data;
+    absenceColNames = listeMedecins.map(m => m.initiales).filter(init => init && init.trim());
+  }
+}
+
+function attachColHover() {
+  [
+    { table: 'planning-table',  tbody: 'table-body'    },
+    { table: 'abs-table', tbody: 'abs-body' }
+  ].forEach(({ table: tableId, tbody: tbodyId }) => {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    let lastColIdx = -1;
+
+    table.addEventListener('mouseover', (e) => {
+      const td = e.target.closest(`#${tbodyId} td`);
+      if (!td) return;
+      const idx = td.cellIndex;
+      if (idx === lastColIdx) return;
+      if (lastColIdx >= 0) {
+        document.querySelectorAll(`#${tbodyId} td:nth-child(${lastColIdx + 1})`)
+          .forEach(c => c.classList.remove('col-hover'));
+      }
+      lastColIdx = idx;
+      document.querySelectorAll(`#${tbodyId} td:nth-child(${idx + 1})`)
+        .forEach(c => c.classList.add('col-hover'));
+    });
+
+    table.addEventListener('mouseleave', () => {
+      if (lastColIdx >= 0) {
+        document.querySelectorAll(`#${tbodyId} td:nth-child(${lastColIdx + 1})`)
+          .forEach(c => c.classList.remove('col-hover'));
+        lastColIdx = -1;
+      }
+    });
+  });
+}
+
+// ── Calcule les conflits à venir pour l'utilisateur connecté ──────────────
+function computeMyConflicts() {
+  if (!currentUser?.initiales) return { red: [], yellow: [] };
+  const myInitiales = currentUser.initiales.trim().toUpperCase();
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const horizon = new Date(today); horizon.setDate(today.getDate() + 30);
+
+  const absIdx = buildAbsenceIndex();
+  const red    = [];
+  const yellow = [];
+
+  allData.forEach(row => {
+    const rowDate = new Date(row.date + 'T00:00:00');
+    if (rowDate < today || rowDate > horizon) return;
+
+    // — Conflits CLINIQUES —
+    const conflictCols = [];
+    DOCTOR_COLS.forEach(col => {
+      if (CONFLICT_IGNORE_COLS.includes(col)) return;
+      const val = (row[col] || '').trim().toUpperCase();
+      if (val === myInitiales) conflictCols.push(col);
+    });
+
+    if (conflictCols.length > 1) {
+      const labels = conflictCols.map(k => COLUMNS.find(c => c.key === k)?.label || k);
+
+      // Vérifier si admin a accepté
+      const adminAccepted = acceptedConflicts[row.id] === true;
+
+      // Vérifier si moi j'ai accepté tous mes postes
+      const myFullyAccepted = !adminAccepted && conflictCols.every(col =>
+        conflictAcceptances.some(a =>
+          a.planning_row_id === row.id &&
+          a.doctor_initiales === myInitiales &&
+          a.col_key === col &&
+          a.accepted_value === (row[col] || '').trim().toUpperCase()
+        )
+      );
+
+      const entry = {
+        type: 'clinique',
+        rowId: row.id,
+        date: row.date,
+        heure: row.heure,
+        cols: conflictCols,
+        detail: `Affecté simultanément sur : ${labels.join(' + ')}`,
+        adminAccepted,
+        myAccepted: adminAccepted || myFullyAccepted
+      };
+
+      if (adminAccepted || myFullyAccepted) yellow.push(entry);
+      else red.push(entry);
+    }
+
+    // — Conflits NON-CLINIQUES (pas résolvables) —
+    const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+    if (dateAbsences.has(myInitiales)) {
+      const postes = DOCTOR_COLS
+        .filter(col => (row[col] || '').trim().toUpperCase() === myInitiales)
+        .map(col => COLUMNS.find(c => c.key === col)?.label || col);
+      if (postes.length > 0) {
+        red.push({
+          type: 'non-clinique',
+          rowId: row.id,
+          date: row.date,
+          heure: row.heure,
+          cols: [],
+          detail: `Absent (${dateAbsences.get(myInitiales).type}) mais affecté sur : ${postes.join(', ')}`,
+          adminAccepted: false,
+          myAccepted: false
+        });
+      }
+    }
+  });
+
+  return { red, yellow };
+}
+
+// ── Met à jour le badge de la cloche ─────────────────────────────────────
+function updateBellBadge() {
+  const bell  = document.getElementById('btn-conflicts-bell');
+  const badge = document.getElementById('bell-badge');
+  if (!bell) return;
+
+  const { red } = computeMyConflicts();
+  const redClinique = red.filter(c => c.type === 'clinique').length;
+  const unread      = countUnreadAnnonces();
+  const total       = redClinique + unread;
+
+  bell.style.display = 'inline-flex';
+  if (total > 0) {
+    badge.style.display = 'flex';
+    badge.textContent   = total;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── Vérifie les conflits à l'ouverture de session ─────────────────────────
+function checkUpcomingConflicts() {
+  const { red } = computeMyConflicts();
+  // N'affiche la popup que s'il y a des conflits cliniques rouges
+  const redClinique = red.filter(c => c.type === 'clinique');
+  if (redClinique.length > 0) openConflictManager(true);
+  updateBellBadge();
+}
+
+// ── Ouvre la modale de gestion des conflits ───────────────────────────────
+function openConflictManager(isStartup = false, startTab = 'conflicts') {
+  const { red, yellow } = computeMyConflicts();
+  const modal    = document.getElementById('conflict-manager-modal');
+  const title    = document.getElementById('conflict-manager-title');
+  const subtitle = document.getElementById('conflict-manager-subtitle');
+  const list     = document.getElementById('conflict-manager-list');
+
+  list.innerHTML = '';
+
+  // Mise à jour des badges d'onglets
+  const redClinique = red.filter(c => c.type === 'clinique').length;
+  const unread      = countUnreadAnnonces();
+
+  const conflictsBadge = document.getElementById('notif-tab-conflicts-badge');
+  const annoncesBadge  = document.getElementById('notif-tab-annonces-badge');
+
+  conflictsBadge.style.display = redClinique > 0 ? 'inline' : 'none';
+  conflictsBadge.textContent   = redClinique;
+  annoncesBadge.style.display  = unread > 0 ? 'inline' : 'none';
+  annoncesBadge.textContent    = unread;
+
+  // Activer le bon onglet
+  switchNotifTab(startTab);
+
+  const redCliniqueList     = red.filter(c => c.type === 'clinique');
+  const redNonClinique = red.filter(c => c.type === 'non-clinique');
+
+  // Titre et couleur de bordure selon état
+  if (redCliniqueList .length === 0) {
+    title.textContent = '✅ Aucun conflit clinique à résoudre';
+    title.style.color = 'var(--teal)';
+    modal.querySelector('div').style.borderColor = 'var(--teal)';
+  } else {
+    title.textContent = '⚠️ Mes conflits';
+    title.style.color = 'var(--red)';
+    modal.querySelector('div').style.borderColor = 'var(--red)';
+  }
+
+subtitle.innerHTML =
+    `<span style="color:var(--red)">${redCliniqueList.length} conflit(s) clinique(s) à résoudre</span>` +
+    (redNonClinique.length ? ` &nbsp;·&nbsp; <span style="color:var(--purple)">${redNonClinique.length} conflit(s) non-clinique(s)</span>` : '') +
+    (yellow.length         ? ` &nbsp;·&nbsp; <span style="color:var(--amber)">${yellow.length} déjà accepté(s)</span>` : '');
+
+  // ── Conflits rouges cliniques (résolvables) ──
+  redCliniqueList.forEach(conf => list.appendChild(buildManagerItem(conf)));
+
+  // ── Conflits rouges non-cliniques (info seulement) ──
+  if (redNonClinique.length > 0) {
+    const sep = document.createElement('div');
+    sep.style.cssText = 'font-family:DM Mono,monospace; font-size:10px; color:var(--purple); padding:8px 0 4px; border-top:1px solid var(--border); margin-top:4px;';
+    sep.textContent = '🌴 Conflits non-cliniques — à régler avec un admin';
+    list.appendChild(sep);
+    redNonClinique.forEach(conf => list.appendChild(buildManagerItem(conf)));
+  }
+
+  // ── Conflits jaunes (déjà acceptés) ──
+  if (yellow.length > 0) {
+    const details = document.createElement('details');
+    details.style.cssText = 'border:1px solid var(--border); border-radius:6px; overflow:hidden; margin-top:4px;';
+    const summary = document.createElement('summary');
+    summary.style.cssText = 'padding:9px 12px; font-family:DM Mono,monospace; font-size:11px; color:var(--amber); cursor:pointer; background:var(--navy); list-style:none;';
+    summary.textContent = `▶ ${yellow.length} conflit(s) déjà accepté(s)`;
+    details.addEventListener('toggle', () => {
+      summary.textContent = (details.open ? '▼' : '▶') + ` ${yellow.length} conflit(s) déjà accepté(s)`;
+    });
+    details.appendChild(summary);
+    const content = document.createElement('div');
+    content.style.cssText = 'padding:8px; display:flex; flex-direction:column; gap:4px; background:var(--navy-mid);';
+    yellow.forEach(conf => content.appendChild(buildManagerItem(conf)));
+    details.appendChild(content);
+    list.appendChild(details);
+  }
+
+  modal.style.display = 'flex';
+  updateBellBadge();
+}
+
+function closeConflictManager() {
+  document.getElementById('conflict-manager-modal').style.display = 'none';
+}
+
+// ── Switcher entre les onglets de la modale ───────────────────────────────
+function switchNotifTab(tab) {
+  const tabs   = ['conflicts', 'annonces'];
+  tabs.forEach(t => {
+    const btn   = document.getElementById(`notif-tab-${t}`);
+    const panel = document.getElementById(`notif-panel-${t}`);
+    const isActive = t === tab;
+    btn.style.background  = isActive ? 'var(--navy-mid)' : 'var(--navy)';
+    btn.style.color       = isActive ? 'var(--white)'    : 'var(--gray)';
+    btn.style.borderBottom= isActive ? '1px solid var(--navy-mid)' : '';
+    panel.style.display   = isActive ? 'flex' : 'none';
+  });
+  if (tab === 'annonces') renderAnnoncesTab();
+}
+
+// ── Rendu de l'onglet Annonces ────────────────────────────────────────────
+function renderAnnoncesTab() {
+  const list = document.getElementById('annonces-tab-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const read = getReadAnnonces();
+
+  if (allAnnonces.length === 0) {
+    list.innerHTML = `<p style="color:var(--gray); font-size:12px; text-align:center; padding:20px;">
+      Aucune annonce active.</p>`;
+    return;
+  }
+
+  allAnnonces.forEach(a => {
+    const isRead = read.includes(a.id);
+    const dateExp = new Date(a.date_expiration + 'T00:00:00')
+      .toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+    const borderColor = a.priorite === 'urgent'
+      ? 'var(--red)' : a.priorite === 'warning'
+      ? 'var(--amber)' : 'var(--teal)';
+
+    const item = document.createElement('div');
+    item.style.cssText = `
+      border:1px solid var(--border);
+      border-left:3px solid ${borderColor};
+      border-radius:6px; overflow:hidden;
+      opacity:${isRead ? '0.5' : '1'};
+      transition: opacity .2s;
+    `;
+
+    item.innerHTML = `
+      <div style="
+        display:flex; align-items:center; gap:10px;
+        padding:8px 12px; background:var(--navy);
+        font-family:'DM Mono',monospace; font-size:11px;">
+        <span style="flex:1; color:${borderColor}; font-weight:600;">
+          ${a.titre || '📢 Annonce'}
+        </span>
+        <span style="font-size:10px; color:var(--gray);">
+          Jusqu'au ${dateExp}
+        </span>
+        ${!isRead ? `
+          <button onclick="markAnnonceRead(${a.id})" style="
+            font-size:10px; background:var(--teal-dim); color:var(--teal);
+            border:1px solid var(--teal); border-radius:4px;
+            padding:2px 8px; cursor:pointer;
+            font-family:'DM Mono',monospace;">
+            ✓ Lu
+          </button>` : `
+          <span style="font-size:10px; color:var(--gray); 
+            font-family:'DM Mono',monospace;">✓ Lu</span>
+        `}
+      </div>
+      <div style="
+        padding:10px 14px; font-size:12px; color:var(--white);
+        background:var(--navy-mid); border-top:1px solid var(--border);
+        line-height:1.6;">
+        ${a.message}
+      </div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+// ── Construit un item de conflit dans la modale ───────────────────────────
+function buildManagerItem(conf) {
+  const myInitiales = currentUser.initiales.trim().toUpperCase();
+  const item = document.createElement('div');
+  item.style.cssText = `
+    border:1px solid var(--border); border-radius:6px; overflow:hidden;
+    border-left:3px solid ${conf.type === 'non-clinique' ? 'var(--purple)' : conf.myAccepted ? 'var(--amber)' : 'var(--red)'};
+  `;
+
+  const dateStr = new Date(conf.date + 'T00:00:00')
+    .toLocaleDateString('fr-FR', { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric' });
+
+  // Bouton d'action selon état
+  let actionBtn = '';
+  if (conf.type === 'non-clinique') {
+    actionBtn = `<span style="font-size:10px; color:var(--purple); font-family:'DM Mono',monospace;">ℹ️ Non résolvable</span>`;
+  } else if (conf.adminAccepted) {
+    actionBtn = `<span style="font-size:10px; color:var(--amber); font-family:'DM Mono',monospace;">🔒 Accepté par admin</span>`;
+  } else if (conf.myAccepted) {
+    actionBtn = `<button onclick="revokeConflictAcceptance('${conf.rowId}', '${myInitiales}', this)" 
+      style="font-size:11px; background:var(--amber-dim); color:var(--amber); 
+             border:1px solid var(--amber); border-radius:4px; padding:3px 8px; cursor:pointer;">
+      ✓ Accepté — annuler ?
+    </button>`;
+} else {
+    // On échappe les guillemets doubles générés par JSON.stringify pour ne pas casser l'attribut HTML
+    const colsJson = JSON.stringify(conf.cols).replace(/"/g, '&quot;');
+    const initJson = JSON.stringify(conf.cols.map(c => myInitiales)).replace(/"/g, '&quot;');
+
+    actionBtn = `<button onclick="acceptConflict(${conf.rowId}, '${myInitiales}', ${colsJson}, ${initJson}, this)" 
+      style="font-size:11px; background:var(--teal-dim); color:var(--teal); 
+             border:1px solid var(--teal); border-radius:4px; padding:3px 8px; cursor:pointer;">
+      ✓ Accepter
+    </button>`;
+  }
+
+  item.innerHTML = `
+    <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; 
+                background:var(--navy); font-family:'DM Mono',monospace; font-size:11px;">
+      <span style="color:var(--white); flex:1;">${dateStr} — ${conf.heure}</span>
+      ${actionBtn}
+    </div>
+    <div style="padding:8px 14px; font-size:11px; color:var(--gray); 
+                background:var(--navy-mid); border-top:1px solid var(--border);">
+      ${conf.detail}
+    </div>
+  `;
+
+  return item;
+}
+
+// ── Accepter un conflit ───────────────────────────────────────────────────
+async function acceptConflict(rowId, doctor, cols, values, btnEl) {
+  const inserts = cols.map((col, i) => ({
+    planning_row_id  : rowId,
+    doctor_initiales : doctor,
+    col_key          : col,
+    accepted_value   : values[i]
+  }));
+
+  const { error } = await _supabase
+    .from('conflict_acceptances')
+    .upsert(inserts, { onConflict: 'planning_row_id,doctor_initiales,col_key' });
+
+  if (error) { toast('Erreur : ' + error.message, 'error'); return; }
+
+  // Mettre à jour le cache local
+  inserts.forEach(ins => {
+const idx = conflictAcceptances.findIndex(a =>
+    String(a.planning_row_id) === String(ins.planning_row_id) &&
+    a.doctor_initiales === ins.doctor_initiales &&
+    a.col_key === ins.col_key
+  );
+    if (idx >= 0) conflictAcceptances[idx] = ins;
+    else conflictAcceptances.push(ins);
+  });
+
+  toast('Conflit accepté ✓');
+  applyFilters();
+  openConflictManager(); // Rafraîchit la modale
+}
+
+// ── Révoquer une acceptance ───────────────────────────────────────────────
+async function revokeConflictAcceptance(rowId, doctor, btnEl) {
+  const { error } = await _supabase
+    .from('conflict_acceptances')
+    .delete()
+    .eq('planning_row_id', rowId)
+    .eq('doctor_initiales', doctor);
+
+  if (error) { toast('Erreur : ' + error.message, 'error'); return; }
+
+  // Mettre à jour le cache local
+conflictAcceptances = conflictAcceptances.filter(a =>
+    !(String(a.planning_row_id) === String(rowId) && a.doctor_initiales === doctor)
+  );
+
+  toast('Acceptance annulée');
+  applyFilters();
+  openConflictManager(); // Rafraîchit la modale
+}
+
+function toggleBrushMode() {
+  isBrushMode = !isBrushMode;
+  const btn = document.getElementById('btn-brush');
+  const picker = document.getElementById('brush-picker-wrapper');
+  
+  if (isBrushMode) {
+    btn.style.background = 'var(--purple-dim)';
+    btn.style.borderColor = 'var(--purple)';
+    picker.style.display = 'flex';
+    updateBrushSuggestions();
+    toast('Mode Pinceau activé : cliquez sur les cellules pour remplir', 'purple');
+  } else {
+    btn.style.background = 'transparent';
+    btn.style.borderColor = 'var(--border)';
+    picker.style.display = 'none';
+  }
+}
+function toggleTheme() {
+  document.body.classList.toggle('light-mode');
+  
+  // Optionnel : Sauvegarder le choix de l'utilisateur
+  const isLight = document.body.classList.contains('light-mode');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+
+// Au chargement de la page, appliquer le thème sauvegardé
+if (localStorage.getItem('theme') === 'light') {
+  document.body.classList.add('light-mode');
+}
+
+function updateBrushSuggestions() {
+  const datalist = document.getElementById('brush-suggestions');
+  datalist.innerHTML = '';
+  
+  // Option vide explicite
+  const emptyOpt = document.createElement('option');
+  emptyOpt.value = "vide";
+  emptyOpt.textContent = "(Effacer)";
+  datalist.appendChild(emptyOpt);
+
+  if (currentTab === 'planning') {
+    // Liste des neurologues (non internes par défaut ou selon votre logique)
+    listeMedecins.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.initiales.toUpperCase();
+      datalist.appendChild(opt);
+    });
+  } else if (currentTab === 'absences') {
+    // Types de congés
+    ABS_TYPES.forEach(type => {
+      const opt = document.createElement('option');
+      opt.value = type;
+      datalist.appendChild(opt);
+    });
+  }
+}
+
+function applyBrushValue(row, colKey, td, isAbsence = false) {
+  let val = document.getElementById('brush-value').value.trim();
+  
+  // Règle : si "vide", on injecte null
+  const finalValue = (val.toLowerCase() === 'vide' || val === '') ? null : val.toUpperCase();
+
+  if (isAbsence) {
+    if (!pendingEditsAbs[row.id]) pendingEditsAbs[row.id] = {};
+    pendingEditsAbs[row.id][colKey] = finalValue;
+    td.textContent = finalValue || '';
+    td.className = finalValue ? `abs-${finalValue}` : '';
+  } else {
+    if (!pendingEdits[row.id]) pendingEdits[row.id] = {};
+    pendingEdits[row.id][colKey] = finalValue;
+    td.textContent = finalValue || '';
+    td.style.borderColor = 'var(--amber)';
+  }
+  buildStats(); // Mise à jour des compteurs en temps réel
+}
+
+function buildColToggles() {
+  const container = document.getElementById('col-toggles');
+  container.innerHTML = '';
+  Object.keys(groupMap).forEach(group => {
+    const label = document.createElement('label');
+    label.className = 'group-toggle active';
+    label.dataset.group = group; 
+    label.style.color       = GROUP_COLORS[group] || 'var(--white)';
+    label.style.borderColor = GROUP_COLORS[group] || 'var(--border)';
+    
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; 
+    cb.checked = true;
+    
+    cb.addEventListener('change', () => {
+      groupMap[group].forEach(key => { visibleCols[key] = cb.checked; });
+      label.classList.toggle('active', cb.checked);
+      applyColVisibility();
+    });
+    
+    const dot = document.createElement('span'); 
+    dot.className = 'dot';
+    
+    label.appendChild(cb); 
+    label.appendChild(dot);
+    label.appendChild(document.createTextNode(GROUP_LABELS[group] || group));
+    container.appendChild(label);
+  });
+}
+
+function applyColVisibility() {
+  COLUMNS.forEach(col => {
+    if (col.group === 'meta') return;
+    
+    const isInterneCol = col.key.endsWith('_int') || col.key.endsWith('_int1') || col.key.endsWith('_int2');
+    const shouldShow = visibleCols[col.key] && (!isInterneCol || showInternes);
+    
+    const displayStyle = shouldShow ? '' : 'none';
+    document.querySelectorAll(`[data-col="${col.key}"]`).forEach(cell => { 
+      cell.style.display = displayStyle; 
+    });
+  });
+
+  // Mise à jour des en-têtes de groupe ET de leur largeur (colspan)
+  Object.keys(groupMap).forEach(group => {
+    // On compte combien de colonnes de ce groupe sont actuellement visibles
+    const visibleCount = groupMap[group].filter(key => {
+      const isInterneCol = key.endsWith('_int') || key.endsWith('_int1') || key.endsWith('_int2');
+      return visibleCols[key] && (!isInterneCol || showInternes);
+    }).length;
+
+    const th = document.querySelector(`.col-group[data-group="${group}"]`);
+    if (th) {
+      if (visibleCount > 0) {
+        th.style.display = '';
+        th.colSpan = visibleCount; // On ajuste le colspan au nombre réel de colonnes affichées
+      } else {
+        th.style.display = 'none';
+      }
+    }
+  });
+  if (currentTab === 'semainier') {
+        renderSemainier();
+     }
+  buildStats();
+}
+
+
+const ABS_TYPE_COLORS = { CA:'#93c5fd', CF:'#c084fc', Ens:'#6ee7b7', Rech:'#fbbf24', Autre:'#f87171' };
+
+function buildAbsTypeToggles() {
+  const container = document.getElementById('abs-type-toggles');
+  ABS_TYPES.forEach(type => {
+    const label = document.createElement('label');
+    label.className = 'group-toggle active';
+    const col = ABS_TYPE_COLORS[type] || 'var(--white)';
+    label.style.color = col; label.style.borderColor = col;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = true;
+    cb.addEventListener('change', () => {
+      if (cb.checked) absVisibleTypes.add(type); else absVisibleTypes.delete(type);
+      label.classList.toggle('active', cb.checked);
+      applyAbsFilters();
+    });
+    const dot = document.createElement('span'); dot.className = 'dot';
+    label.appendChild(cb); label.appendChild(dot);
+    label.appendChild(document.createTextNode(type));
+    container.appendChild(label);
+  });
+}
+
+function toggleStatsPanel() {
+  const panel = document.getElementById('stats-panel');
+  const btn   = document.getElementById('stats-toggle-btn');
+  panel.classList.toggle('collapsed');
+  btn.textContent = panel.classList.contains('collapsed') ? '‹' : '›';
+}
+
+async function loadData() {
+  showLoading(true);
+  const { data, error } = await _supabase.from('planning').select('*')
+    .order('date', { ascending: true }).order('heure', { ascending: true });
+  if (error) { showLoading(false); setStatus('error'); toast('Erreur planning : ' + error.message, 'error'); return; }
+
+  const rows = data || [];
+  const planMap = {};
+  rows.forEach(row => { row.ReposGarde = ''; planMap[`${row.date}_${row.heure}`] = row; });
+  rows.forEach(row => {
+    if (!row.Garde?.trim()) return;
+    const [y, m, d] = row.date.split('-').map(Number);
+    const dt = new Date(y, m - 1, d); dt.setDate(dt.getDate() + 1);
+    const s = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    const next = planMap[`${s}_${row.heure}`];
+    if (next) next.ReposGarde = row.Garde;
+  });
+  acceptedConflicts = {};
+  rows.forEach(row => { acceptedConflicts[row.id] = row.conflict_accepted === true; });
+
+  allData = rows;
+  setStatus('connected');
+  showLoading(false);
+  applyFilters();
+}
+
+async function loadAbsences() {
+  const { data, error } = await _supabase.from('absences').select('*').order('date');
+  if (error) { toast('Erreur absences : ' + error.message, 'error'); return; }
+  absencesData = data || [];
+  applyAbsFilters();
+  applyFilters(); 
+}
+
+function buildAbsenceIndex() {
+  const idx = new Map();
+  absencesData.forEach(absRow => {
+    if (!absRow.date || !absRow.heure) return;
+    const key = `${absRow.date}_${absRow.heure}`;
+    if (!idx.has(key)) idx.set(key, new Map());
+    absenceColNames.forEach(docCol => {
+      const absType = absRow[docCol];
+      if (absType && absType.trim()) {
+        idx.get(key).set(docCol.toUpperCase(), { type: absType });
+      }
+    });
+  });
+  return idx;
+}
+
+function subscribeRealtime() {
+  realtimeSub = _supabase.channel('planning-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'planning' }, payload => {
+      if (payload.eventType === 'UPDATE') {
+        const idx = allData.findIndex(r => r.id === payload.new.id);
+        if (idx >= 0) allData[idx] = payload.new; else allData.push(payload.new);
+      } else if (payload.eventType === 'INSERT') {
+        allData.push(payload.new);
+        allData.sort((a, b) => a.date.localeCompare(b.date) || a.heure.localeCompare(b.heure));
+      } else if (payload.eventType === 'DELETE') {
+        allData = allData.filter(r => r.id !== payload.old.id);
+      }
+      applyFilters();
+      updateBellBadge();
+      toast('Planning mis à jour');
+    })
+    .subscribe(s => { if (s === 'SUBSCRIBED') document.getElementById('realtime-badge').classList.add('active'); });
+}
+
+function subscribeRealtimeAbsences() {
+  realtimeAbsSub = _supabase.channel('absences-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'absences' }, payload => {
+      if (payload.eventType === 'UPDATE') {
+        const idx = absencesData.findIndex(r => r.id === payload.new.id);
+        if (idx >= 0) absencesData[idx] = payload.new; else absencesData.push(payload.new);
+      } else if (payload.eventType === 'INSERT') {
+        absencesData.push(payload.new);
+        absencesData.sort((a, b) => a.date.localeCompare(b.date));
+      } else if (payload.eventType === 'DELETE') {
+        absencesData = absencesData.filter(r => r.id !== payload.old.id);
+      }
+      applyAbsFilters();
+      applyFilters();
+      updateBellBadge();
+      toast('Absences mises à jour', 'purple');
+    })
+    .subscribe();
+}
+
+function onFilterChange() {
+  if (currentTab === 'planning') {
+    applyFilters();
+  } else if (currentTab === 'absences') {
+    applyAbsFilters();
+  } else if (currentTab === 'semainier') {
+    // Le semainier dépend de currentFilteredRows, on doit donc 
+    // rafraîchir les données filtrées avant de redessiner
+    applyFilters(); 
+    renderSemainier();
+  }
+  buildStats();
+}
+
+function clearFilters() {
+  const today = new Date();
+      const future = new Date();
+     future.setDate(today.getDate() + 100);
+     const dateFromStr = today.toISOString().split('T')[0];
+     const dateToStr = future.toISOString().split('T')[0];
+
+  document.getElementById('filter-date-from').value = dateFromStr;
+  document.getElementById('filter-date-to').value   = dateToStr;
+  document.getElementById('search-doctor').value    = '';
+  doctorFilter = null;
+  document.querySelectorAll('.stat-row').forEach(r => r.classList.remove('active-filter'));
+     // RÉINITIALISER LES TOGGLES DE GROUPES
+  COLUMNS.forEach(col => { visibleCols[col.key] = true; });
+  showInternes = false;
+     const chkInternes = document.getElementById('chk-show-internes');
+     if (chkInternes) chkInternes.checked = false;
+  document.querySelectorAll('#col-toggles .group-toggle').forEach(label => {
+        label.classList.add('active');
+        const cb = label.querySelector('input[type="checkbox"]');
+        if (cb) cb.checked = true;
+     });
+  applyFilters();
+  applyColVisibility();
+     toggleInternesVisibility();
+}
+
+function applyFilters() {
+  const dateFrom  = document.getElementById('filter-date-from').value;
+  const dateTo    = document.getElementById('filter-date-to').value;
+  const docSearch = document.getElementById('search-doctor').value.trim().toLowerCase();
+
+  currentFilteredRows = allData.filter(row => {
+    if (dateFrom && row.date < dateFrom) return false;
+    if (dateTo   && row.date > dateTo)   return false;
+    if (docSearch && !DOCTOR_COLS.some(c => (row[c] || '').toLowerCase().includes(docSearch))) return false;
+    if (doctorFilter && !DOCTOR_COLS.some(c => (row[c] || '').trim().toUpperCase() === doctorFilter.toUpperCase())) return false;
+    return true;
+  });
+  // NE dessiner le tableau que si l'onglet est actif
+  if (currentTab === 'planning') {
+           renderTable(currentFilteredRows, docSearch || doctorFilter);
+      }
+
+  applyColVisibility();
+  buildStats();
+}
+
+function applyAbsFilters() {
+  const dateFrom  = document.getElementById('filter-date-from').value;
+  const dateTo    = document.getElementById('filter-date-to').value;
+  
+  currentFilteredAbs = absencesData.filter(abs => {
+    if (dateFrom && abs.date < dateFrom) return false;
+    if (dateTo   && abs.date > dateTo)   return false;
+    return true; // On affiche tout sur la période pour voir tous les médecins
+  });
+
+  renderAbsences(currentFilteredAbs);
+  buildStats();
+}
+
+//  NOUVELLE FONCTION POUR GERER LA VISIBILITE DES INTERNES
+function toggleInternesVisibility() {
+  showInternes = document.getElementById('chk-show-internes').checked;
+  const wrap = document.getElementById('toggle-internes-wrap');
+  
+  if (showInternes) {
+    wrap.style.background = "var(--purple-dim)";
+    wrap.classList.add('active');
+  } else {
+    wrap.style.background = "transparent";
+    wrap.classList.remove('active');
+  }
+
+  // On met à jour l'affichage des colonnes
+  applyColVisibility();
+}
+function buildTableHeader() {
+  const thead = document.getElementById('table-head');
+  thead.innerHTML = '';
+  const groupRow = document.createElement('tr');
+  let prevGroup = null, span = 0;
+  const thList = [];
+  COLUMNS.forEach(col => {
+    if (col.group !== prevGroup) { if (prevGroup !== null) thList.push({ group: prevGroup, span }); prevGroup = col.group; span = 1; }
+    else span++;
+  });
+  thList.push({ group: prevGroup, span });
+  const gLbl = { meta:'', neurog:'NeuroG', hdj:'HDJ', unv:'UNV', usi:'USI', bip:'BIP', garde:'Gardes', repos:'R.Garde', box:'BOX' };
+  thList.forEach(({ group, span }) => {
+    const th = document.createElement('th');
+    th.colSpan = span; th.className = 'col-group'; th.dataset.group = group; th.textContent = gLbl[group] || group;
+    if (GROUP_COLORS[group]) { th.style.background = GROUP_COLORS[group]; th.style.color = '#0d1b2a'; }
+    groupRow.appendChild(th);
+  });
+  const colRow = document.createElement('tr');
+  COLUMNS.forEach(col => {
+    const th = document.createElement('th');
+    th.textContent = col.label; th.dataset.col = col.key;
+    if (GROUP_COLORS[col.group]) th.style.color = GROUP_COLORS[col.group];
+    colRow.appendChild(th);
+  });
+  thead.appendChild(groupRow); thead.appendChild(colRow);
+}
+
+async function toggleConflict(rowId) {
+  const newVal = !acceptedConflicts[rowId];
+  const { error } = await _supabase.from('planning').update({ conflict_accepted: newVal }).eq('id', rowId);
+  if (error) { toast('Erreur sauvegarde conflit', 'error'); return; }
+  acceptedConflicts[rowId] = newVal;
+  toast(newVal ? 'Conflit accepté ✓' : 'Conflit à résoudre', 'warning');
+  applyFilters();
+}
+
+function getConflictStatus(row, conflictingDoctors) {
+  // Si admin a accepté toute la ligne → jaune immédiatement
+  if (acceptedConflicts[row.id] === true) return 'accepted';
+  if (conflictingDoctors.length === 0) return 'none';
+
+  // Pour chaque médecin en conflit, on vérifie ses acceptances individuelles
+  for (const doctor of conflictingDoctors) {
+    // Trouver les postes en conflit pour ce médecin sur cette ligne
+    const conflictCols = [];
+    DOCTOR_COLS.forEach(col => {
+      if (CONFLICT_IGNORE_COLS.includes(col)) return;
+      const val = (row[col] || '').trim().toUpperCase();
+      if (val === doctor) conflictCols.push(col);
+    });
+
+    // Vérifier que chaque poste a une acceptance valide
+    const allAccepted = conflictCols.every(col => {
+return conflictAcceptances.some(a =>
+    String(a.planning_row_id) === String(row.id) &&
+    a.doctor_initiales === doctor &&
+    a.col_key === col &&
+    a.accepted_value === (row[col] || '').trim().toUpperCase()
+  );
+    });
+
+    // Si ce médecin n'a pas tout accepté → la ligne reste rouge
+    if (!allAccepted) return 'conflict';
+  }
+
+  // Tous les médecins ont accepté → jaune
+  return 'accepted';
+}
+
+
+function renderTable(rows, highlightDoctor) {
+  const tbody = document.getElementById('table-body');
+  const empty = document.getElementById('empty-state');
+  tbody.innerHTML = '';
+
+  if (rows.length === 0) {
+    empty.style.display = 'block';
+    document.getElementById('conflict-count').textContent = '0';
+    document.getElementById('conflict-count-noncli').textContent = '0';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const absIdx = buildAbsenceIndex();
+  let conflictCount = 0, conflictNonCliCount = 0;
+
+let lastDate = null;
+
+rows.forEach(row => {
+  const tr = document.createElement('tr');
+  if (row.date !== lastDate) {
+    tr.classList.add('new-day');
+    lastDate = row.date;
+  }
+
+    const doctorPos = {};
+    DOCTOR_COLS.forEach(col => {
+      if (CONFLICT_IGNORE_COLS.includes(col)) return;
+      const val = (row[col] || '').trim().toUpperCase();
+      if (val && val.length <= 6) {
+        if (!doctorPos[val]) doctorPos[val] = [];
+        doctorPos[val].push(col);
+      }
+    });
+    const conflicting = Object.entries(doctorPos).filter(([, cs]) => cs.length > 1).map(([d]) => d);
+    const isAccepted  = acceptedConflicts[row.id] === true;
+
+    const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+    const nonCliConflicts = [];
+    DOCTOR_COLS.forEach(col => {
+      const val = (row[col] || '').trim().toUpperCase();
+      if (val && val.length <= 6 && dateAbsences.has(val)) {
+        nonCliConflicts.push({ doctor: val, col, type: dateAbsences.get(val).type });
+      }
+    });
+
+const conflictStatus = getConflictStatus(row, conflicting);
+
+if (conflicting.length && conflictStatus === 'conflict') {
+  tr.classList.add('conflict'); conflictCount++;
+  tr.title = '⚠️ Conflit clinique : ' + conflicting.join(', ');
+} else if (conflicting.length && conflictStatus === 'accepted') {
+  tr.classList.add('conflict-accepted');
+  tr.title = '✓ Conflit accepté : ' + conflicting.join(', ');
+} else if (nonCliConflicts.length) {
+  tr.classList.add('conflict-noncli'); conflictNonCliCount++;
+  tr.title = '🌴 Conflit non-clinique : ' + nonCliConflicts.map(c => `${c.doctor} (${c.type})`).join(', ');
+}
+
+    tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
+
+    COLUMNS.forEach(col => {
+      const td      = document.createElement('td');
+      const val     = row[col.key] || '';
+      const pending = pendingEdits[row.id]?.[col.key];
+      td.dataset.col = col.key;
+
+      if (col.key === 'date') {
+        td.className = 'col-date'; td.textContent = formatDate(val);
+        const myInitiales = currentUser?.initiales?.trim().toUpperCase();
+const isSoleConflict = conflicting.length === 1 
+                    && myInitiales 
+                    && conflicting[0] === myInitiales
+                    && !isAccepted;
+
+if (currentUser?.role === 'admin' && isEditMode && conflicting.length) {
+  td.style.cursor = 'pointer';
+  td.title = isAccepted ? 'Conflit accepté — cliquer pour rouvrir' : 'Conflit — cliquer pour accepter';
+  td.addEventListener('click', () => toggleConflict(row.id));
+  td.addEventListener('click', (e) => {
+    if (isEditMode && isBrushMode && canEditCol(col.key)) applyBrushValue(row, col.key, td);
+  });
+} else if (isSoleConflict) {
+  // Viewer-médecin seul concerné : peut auto-valider
+  td.style.cursor = 'pointer';
+  td.style.textDecoration = 'underline dotted';
+  td.title = '✅ Je suis seul en conflit — cliquer pour accepter ce conflit';
+  td.addEventListener('click', () => toggleConflict(row.id));
+}
+      } else if (col.key === 'heure') {
+        td.className = 'col-heure'; td.textContent = val;
+      } else if (col.key === 'ReposGarde') {
+        td.className = 'editable'; td.style.color = 'var(--gray)'; td.textContent = val;
+      } else {
+        td.className = 'editable';
+        if (!isAccepted && conflicting.includes(val.trim().toUpperCase())) td.style.color = 'var(--red)';
+        else if (nonCliConflicts.some(c => c.col === col.key)) td.style.color = 'var(--purple)';
+
+        if (highlightDoctor && val.trim().toLowerCase().includes(highlightDoctor.toLowerCase())) td.classList.add('doctor-highlight');
+        td.textContent = pending !== undefined ? pending : val;
+        if (pending !== undefined) td.style.borderColor = 'var(--amber)';
+        //if (currentUser?.role === 'admin' && isEditMode && canEditCol(col.key)) td.addEventListener('dblclick', () => startEdit(td, row, col.key));
+if (currentUser?.role === 'admin' && isEditMode) {
+  if (canEditCol(col.key)) {
+    td.addEventListener('dblclick', () => startEdit(td, row, col.key));
+  }
+  td.addEventListener('click', () => { 
+    if (isBrushMode && canEditCol(col.key)) applyBrushValue(row, col.key, td); 
+  });
+} else {
+  td.addEventListener('dblclick', () => openPlanningDropdownReadOnly(td, row, col.key));
+};
+      }
+
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('conflict-count').textContent        = conflictCount;
+  document.getElementById('conflict-count-noncli').textContent = conflictNonCliCount;
+}
+
+function renderAbsences(absRows) {
+  const thead = document.getElementById('abs-head');
+  const tbody = document.getElementById('abs-body');
+  thead.innerHTML = ''; tbody.innerHTML = '';
+
+  if (absRows.length === 0) {
+    document.getElementById('empty-state-abs').style.display = 'block';
+    return;
+  }
+  document.getElementById('empty-state-abs').style.display = 'none';
+
+  // Préparer un index rapide du planning clinique pour la détection de conflit [Nouveau]
+  const clinicalIndex = new Map();
+  allData.forEach(row => {
+    const key = `${row.date}_${row.heure}`;
+    if (!clinicalIndex.has(key)) clinicalIndex.set(key, new Set());
+    DOCTOR_COLS.forEach(col => {
+      const doc = (row[col] || '').trim().toUpperCase();
+      if (doc) clinicalIndex.get(key).add(doc);
+    });
+  });
+
+  const headerRow = document.createElement('tr');
+  headerRow.innerHTML = `<th class="col-date">Date</th><th style="color:var(--teal)">Heure</th>`;
+  absenceColNames.forEach(doc => {
+    headerRow.innerHTML += `<th style="color:var(--purple); text-align:center;">${doc}</th>`;
+  });
+  thead.appendChild(headerRow);
+
+  absRows.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
+    
+    tr.innerHTML = `
+      <td class="col-date">${formatDate(row.date)}</td>
+      <td class="col-heure">${row.heure || ''}</td>
+    `;
+    
+    const key = `${row.date}_${row.heure}`;
+    const clinicalStaff = clinicalIndex.get(key) || new Set();
+
+    absenceColNames.forEach(doc => {
+      const type = row[doc] || '';
+      const docUpper = doc.toUpperCase();
+      const td = document.createElement('td');
+      td.style.textAlign = 'center';
+
+      if (currentUser?.role === 'admin' && isEditMode && canEditAbsences()) {
+        td.style.cursor = 'pointer';
+        td.addEventListener('click', () => {
+                            if (isEditMode && isBrushMode && canEditAbsences()) {
+                                applyBrushValue(row, doc, td, true);
+                             }
+                      });
+        td.addEventListener('dblclick', () => startEdit(td, row, doc));
+      }
+
+      if (type && absVisibleTypes.has(type)) {
+        td.textContent = type;
+        td.className = `abs-${type}`;
+        
+        // DETECTION DE CONFLIT : si le médecin a une absence ET est présent dans le planning [Nouveau]
+        if (clinicalStaff.has(docUpper)) {
+          td.classList.add('abs-conflict');
+          td.title = `Conflit : ${docUpper} est aussi affecté au planning clinique sur ce créneau.`;
+        }
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const dt = new Date(dateStr + 'T00:00:00');
+  return dt.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+}
+
+function showLoading(show) {
+  document.getElementById('loading').style.display = show ? 'flex' : 'none';
+}
+
+function setStatus(status) {
+  const dot = document.getElementById('status-dot');
+  dot.className = status === 'connected' ? 'connected' : (status === 'error' ? 'error' : '');
+}
+
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function populateAbsModal() {
+  const select = document.getElementById('abs-medecin');
+  select.innerHTML = '<option value="">-- Sélectionner --</option>';
+  listeMedecins.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.initiales;
+    opt.textContent = m.initiales;
+    select.appendChild(opt);
+  });
+}
+
+function openAbsModal(date = null, doctor = null) {
+  editingAbsenceId = null;
+  document.getElementById('abs-modal-title').textContent = 'Nouvelle absence';
+  document.getElementById('abs-medecin').value = doctor || '';
+  document.getElementById('abs-date-from').value = date || '';
+  document.getElementById('abs-date-to').value = date || '';
+  document.getElementById('abs-type').value = 'CA';
+  document.getElementById('btn-delete-absence').style.display = 'none';
+  document.getElementById('abs-modal').classList.add('open');
+}
+
+
+function closeAbsModal() {   
+  document.getElementById('abs-modal').classList.remove('open');
+  editingAbsenceId = null;
+}
+
+//fonction de l'onglet absence avec le petit + violet
+async function saveAbsence() {
+  const medecin = document.getElementById('abs-medecin').value;
+  const dateFrom = document.getElementById('abs-date-from').value;
+  const dateTo = document.getElementById('abs-date-to').value;
+  const type = document.getElementById('abs-type').value;
+  const heures = ['09:00:00', '13:30:00'];
+
+  if (!medecin || !dateFrom || !dateTo || !type) { toast('Veuillez remplir tous les champs', 'warning'); return; }
+
+  const dates = [];
+  let current = new Date(dateFrom + 'T00:00:00');
+  const end = new Date(dateTo + 'T00:00:00');
+  while (current <= end) {
+       const s = current.getFullYear() + '-' +     String(current.getMonth() + 1).padStart(2, '0') + '-' +      String(current.getDate()).padStart(2, '0');
+    
+      // On cherche les deux créneaux (matin/après-midi) pour cette date dans nos données locales
+    const rowsToUpdate = absencesData.filter(a => a.date === s);
+
+    rowsToUpdate.forEach(row => {
+      if (!pendingEditsAbs[row.id]) pendingEditsAbs[row.id] = {};
+      
+       // On ajoute à la file d'attente de sauvegarde
+       pendingEditsAbs[row.id][medecin] = type;
+      
+       // On met à jour la donnée locale pour l'affichage immédiat
+       row[medecin] = type;
+      });
+
+       current.setDate(current.getDate() + 1);
+    }
+
+  toast('Modifications ajoutées (n\'oubliez pas de sauvegarder) ✓');
+  closeAbsModal();
+  renderAbsences(currentFilteredAbs);
+  buildStats();
+}
+
+async function deleteAbsence() {
+  if (!editingAbsenceId) return;
+  const { error } = await _supabase.from('absences').delete().eq('id', editingAbsenceId);
+  if (error) { toast('Erreur suppression', 'error'); return; }
+  toast('Absence supprimée');
+  closeAbsModal();
+  await loadAbsences();
+}
+
+function toggleToolbarFilters() {
+  const filters = document.getElementById('toolbar-filters');
+  const btn     = document.getElementById('toolbar-toggle-btn');
+  const isNowCollapsed = filters.classList.toggle('collapsed');
+  btn.textContent = isNowCollapsed ? '▼' : '▲';
+  btn.title = isNowCollapsed ? 'Afficher les filtres' : 'Masquer les filtres';
+}
+
+function toggleEditMode() {
+  isEditMode = !isEditMode;
+  const btn = document.getElementById('btn-toggle-edit');
+  const save = document.getElementById('btn-save-all');
+  const brushCont = document.getElementById('brush-container');
+
+  if (isEditMode) {
+    // Passage en mode édition
+    btn.textContent = "✕ Annuler";
+    btn.classList.replace('btn-ghost', 'btn-danger');
+    save.style.display = 'inline';
+    brushCont.style.display = 'flex';
+    document.body.classList.add('edit-mode');  
+  } else {
+    // Sortie du mode édition (Annulation)
+    btn.textContent = "✏️ Modifier";
+    btn.classList.replace('btn-danger', 'btn-ghost');
+    save.style.display = 'none';
+    
+    // Annulation des changements
+    pendingEdits = {}; 
+    pendingEditsAbs = {};
+    toast('Modifications annulées', 'info');
+    refreshAll(); // On recharge les données proprement depuis Supabase
+    // brush mode
+    brushCont.style.display = 'none';
+    isBrushMode = false;
+    document.getElementById('brush-picker-wrapper').style.display = 'none';
+    document.body.classList.remove('edit-mode'); 
+  }
+  onFilterChange();
+}
+
+/**
+ * REIMPLÉMENTATION DU MODE MODIFICATION ADMIN
+ * Double-clic -> Dropdown trié par compteurs (excluant les doublons de ligne)
+ */
+// Vérifie si l'utilisateur a le droit de modifier une colonne donnée
+function canEditCol(colKey) {
+  const p = window.userPermissions;
+  if (!p || !p.can_edit_planning) return false;
+  
+  // Si restrictions explicites existent, les appliquer
+  if (p.editable_columns || p.editable_groups) {
+    // Vérifier les colonnes individuelles d'abord
+    if (Array.isArray(p.editable_columns) && p.editable_columns.includes(colKey)) return true;
+    
+    // Puis vérifier par groupe
+    if (p.editable_groups?.includes('*')) return true;
+    const col = COLUMNS.find(c => c.key === colKey);
+    if (!col) return false;
+    return p.editable_groups?.includes(col.group) || false;
+  }
+  
+  // Pas de restriction → accès total (fallback ancien format)
+  return true;
+}
+
+function canEditAbsences() {
+  return window.userPermissions?.can_edit_absences === true;
+}
+
+function startEdit(td, row, colKey) {
+  if (currentTab === 'planning') {
+    openPlanningDropdown(td, row, colKey);
+  } else if (currentTab === 'absences') {
+    openAbsenceDropdown(td, row, colKey);
+  }
+}
+
+// --- DROPDOWN POUR LE PLANNING CLINIQUE ---
+function openPlanningDropdown(td, row, colKey) {
+  const dropdown = document.getElementById('edit-dropdown');
+  const rect = td.getBoundingClientRect();
+  dropdown.innerHTML = '';
+
+  // 1. CHAMP DE SAISIE LIBRE (En haut du menu)
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'dd-search-input';
+  input.placeholder = 'Saisir ou choisir...';
+  input.value = (td.textContent === '[ Effacer ]') ? '' : td.textContent;
+  dropdown.appendChild(input);
+
+  // 2. LOGIQUE DE VALIDATION (Touche Entrée ou Perte de focus)
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      confirmPlanningSelection(row, colKey, input.value.trim().toUpperCase(), td);
+    }
+  });
+
+  // 3. CALCUL DES COMPTEURS POUR LES SUGGESTIONS
+  const compteurs = {};
+  listeMedecins.forEach(m => compteurs[m.initiales.toUpperCase()] = 0);
+  currentFilteredRows.forEach(r => {
+    DOCTOR_COLS.forEach(c => {
+      const val = (r[c] || '').trim().toUpperCase();
+      if (compteurs.hasOwnProperty(val)) compteurs[val]++;
+    });
+  });
+
+  const absIdx = buildAbsenceIndex();
+  const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+
+  // Option "Effacer"
+  addDropdownItem(dropdown, '<span style="color:var(--red)">[ Effacer ]</span>', '', () => {
+    confirmPlanningSelection(row, colKey, '', td);
+  });
+// 3 bis.  Médecins déjà présents sur la ligne → à exclure (conflit clinique)
+const alreadyOnRow = new Set();
+DOCTOR_COLS.forEach(col => {
+  if (col === colKey) return;                       // colonne en cours : ignorer
+  if (CONFLICT_IGNORE_COLS.includes(col)) return;  // colonnes exemptées : ignorer
+  const val = (row[col] || '').trim().toUpperCase();
+  if (val && val.length <= 6) alreadyOnRow.add(val);
+});
+  // 4. LISTE DES SUGGESTIONS (Filtrée dynamiquement)
+const renderSuggestions = (filterText = "") => {
+    // On nettoie les anciens items
+    Array.from(dropdown.querySelectorAll('.dd-item:not(:first-of-type)')).forEach(el => el.remove());
+
+    // Déterminer si on édite une colonne d'interne
+    const isEditingInterneCol = colKey.endsWith('_int') || colKey.endsWith('_int1') || colKey.endsWith('_int2');
+
+    // Filtrer les médecins selon la colonne
+    const filteredMedecins = listeMedecins.filter(med => {
+      const medIsInterne = (med.fonction === 'interne');
+      
+      // Si colonne interne -> n'afficher que les internes
+      // Si colonne titulaire -> n'afficher que les médecins qui ne sont pas internes
+      if (isEditingInterneCol) {
+        return medIsInterne;
+      } else {
+        return !medIsInterne;
+      }
+    }).filter(med => !alreadyOnRow.has(med.initiales.toUpperCase()));;
+
+    // Tri par compteur pour les médecins filtrés
+    const sortedMedecins = filteredMedecins.sort((a, b) => 
+      (compteurs[a.initiales.toUpperCase()] || 0) - (compteurs[b.initiales.toUpperCase()] || 0)
+    );
+
+    sortedMedecins.forEach(med => {
+      const init = med.initiales.toUpperCase();
+      if (filterText && !init.includes(filterText.toUpperCase())) return;
+
+      const isAbsent = dateAbsences.has(init);
+      const labelAbs = isAbsent ? ` <span style="color:var(--purple); font-size:9px;">(${dateAbsences.get(init).type})</span>` : '';
+      
+      // Couleur violette pour les internes dans le menu pour rappel visuel
+      const colorStyle = med.fonction === 'interne' ? 'color:var(--purple);' : 'color:var(--white);';
+
+      addDropdownItem(dropdown, 
+        `<span style="${colorStyle}">${init}${labelAbs}</span><span class="dd-count">${compteurs[init] || 0}</span>`, 
+        init, 
+        () => confirmPlanningSelection(row, colKey, init, td)
+      );
+    });
+  };
+  input.addEventListener('input', () => renderSuggestions(input.value));
+  renderSuggestions(); // Premier rendu
+  
+  showDropdown(dropdown, rect);
+  
+  // Focus automatique sur l'input pour taper direct
+  setTimeout(() => input.focus(), 50);
+}
+
+function openPlanningDropdownReadOnly(td, row, colKey) {
+  const dropdown = document.getElementById('edit-dropdown');
+  const rect = td.getBoundingClientRect();
+  dropdown.innerHTML = '';
+
+  const compteurs = {};
+  listeMedecins.forEach(m => compteurs[m.initiales.toUpperCase()] = 0);
+  currentFilteredRows.forEach(r => {
+    DOCTOR_COLS.forEach(c => {
+      const val = (r[c] || '').trim().toUpperCase();
+      if (compteurs.hasOwnProperty(val)) compteurs[val]++;
+    });
+  });
+
+  const absIdx = buildAbsenceIndex();
+  const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+
+  const isEditingInterneCol = colKey.endsWith('_int') || colKey.endsWith('_int1') || colKey.endsWith('_int2');
+
+  const filteredMedecins = listeMedecins
+    .filter(med => isEditingInterneCol ? med.fonction === 'interne' : med.fonction !== 'interne')
+    .sort((a, b) => (compteurs[a.initiales.toUpperCase()] || 0) - (compteurs[b.initiales.toUpperCase()] || 0));
+
+  filteredMedecins.forEach(med => {
+    const init = med.initiales.toUpperCase();
+    const isAbsent = dateAbsences.has(init);
+    const labelAbs = isAbsent
+      ? ` <span style="color:var(--purple); font-size:9px;">(${dateAbsences.get(init).type})</span>`
+      : '';
+    const colorStyle = med.fonction === 'interne' ? 'color:var(--purple);' : 'color:var(--white);';
+
+    const item = document.createElement('div');
+    item.className = 'dd-item';
+    item.style.cursor = 'default';
+    item.innerHTML = `<span style="${colorStyle}">${init}${labelAbs}</span>
+                      <span class="dd-count">${compteurs[init] || 0}</span>`;
+    dropdown.appendChild(item);
+  });
+
+  showDropdown(dropdown, rect);
+}
+	
+// --- DROPDOWN POUR LES ABSENCES (CONGÉS) ---
+function openAbsenceDropdown(td, row, colKey) {
+  const dropdown = document.getElementById('edit-dropdown');
+  const rect = td.getBoundingClientRect();
+  dropdown.innerHTML = '';
+
+  // Option pour effacer l'absence
+  addDropdownItem(dropdown, '<span style="color:var(--gray)">[ Aucun ]</span>', '', () => {
+    confirmAbsenceSelection(row, colKey, '', td);
+  });
+
+  // Liste des types définis dans ABS_TYPES : ['CA', 'CF', 'Ens', 'Rech', 'Autre']
+  const labels = { CA: '🏖️ Vacances', CF: '📚 Formation', Ens: '🎓 Cours', Rech: '🔬 Recherche', Autre: '📌 Autre' };
+  
+  ABS_TYPES.forEach(type => {
+    const label = labels[type] || type;
+    addDropdownItem(dropdown, `<span>${label}</span>`, type, () => {
+      confirmAbsenceSelection(row, colKey, type, td);
+    });
+  });
+
+  showDropdown(dropdown, rect);
+}
+
+
+// --- FONCTIONS SEMAINIERS ---
+// 1. Initialisation du menu déroulant (à appeler dans init())
+function populateSemainierDocs() {
+  const s1 = document.getElementById('select-semainier-doc-1');
+  const s2 = document.getElementById('select-semainier-doc-2');
+
+  
+  [s1, s2].forEach((select, index) => {
+    select.innerHTML = `<option value="">-- Aucun --</option>`;
+    listeMedecins.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.initiales.toUpperCase();
+      opt.textContent = m.initiales;
+      // Sélection par défaut pour le test (premier et deuxième de la liste)
+      if (index === 0 && listeMedecins.indexOf(m) === 0) opt.selected = true;
+      select.appendChild(opt);
+    });
+  });
+  if (s1 && currentUser?.initiales) {
+    s1.value = currentUser.initiales.toUpperCase();
+  }
+  renderSemainier();
+          
+}
+
+// 2. Mise à jour de switchTab pour gérer le nouvel onglet
+const originalSwitchTab = switchTab;
+switchTab = function(tab) {
+  originalSwitchTab(tab); // Appelle l'ancienne logique
+  document.getElementById('semainier-wrap').style.display = (tab === 'semainier') ? 'block' : 'none';
+  if (tab === 'semainier') {
+    if (document.getElementById('select-semainier-doc').options.length === 0) populateSemainierDocs();
+    renderSemainier();
+  }
+};
+
+// 3. Fonction de rendu du Semainier
+function renderSemainier() {
+  const doc1 = document.getElementById('select-semainier-doc-1').value;
+  const doc2 = document.getElementById('select-semainier-doc-2').value;
+  const tbody = document.getElementById('semainier-body');
+  
+  // Gestion de l'affichage de la colonne Médecin 2
+  const hasDoc2 = doc2 !== "";
+  const doc2Elements = document.querySelectorAll('#header-doc-2, #header-doc-2-sub, .col-doc2-data');
+  
+  doc2Elements.forEach(el => {
+    el.style.display = hasDoc2 ? '' : 'none';
+  });
+
+  document.getElementById('header-doc-1').textContent = doc1 || "Médecin 1";
+  if (hasDoc2) document.getElementById('header-doc-2').textContent = doc2;
+
+  tbody.innerHTML = '';
+  if (!doc1 && !doc2) return;
+
+  const absIdx = buildAbsenceIndex();
+
+let lastDateSemainier = null;
+currentFilteredRows.forEach(row => {
+    const tr = document.createElement('tr');
+    if (row.date !== lastDateSemainier) {
+      tr.classList.add('new-day');
+      lastDateSemainier = row.date;
+    }
+    tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
+	
+    const getDocSummary = (doctor) => {
+      if (!doctor) return "";
+      let parts = [];
+      let isClinicalConflict = false;
+      const isAccepted = acceptedConflicts[row.id] === true;
+
+      let countOnLine = 0;
+      COLUMNS.forEach(col => {
+        if (DOCTOR_COLS.includes(col.key) && visibleCols[col.key]) {
+          const val = (row[col.key] || '').trim().toUpperCase();
+          if (val === doctor) {
+            parts.push(col.label);
+            if (!CONFLICT_IGNORE_COLS.includes(col.key)) countOnLine++;
+          }
+        }
+      });
+      
+      if (countOnLine > 1) isClinicalConflict = true;
+
+      const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+      const absType = dateAbsences.get(doctor)?.type;
+
+      let statusStyle = "";
+      let cellTitle = "";
+
+      if (isClinicalConflict) {
+        statusStyle = isAccepted 
+          ? "background: var(--amber-dim); border-left: 3px solid var(--amber); color: var(--amber);" 
+          : "background: var(--red-dim); border-left: 3px solid var(--red); color: var(--red);";
+      } else if (parts.length > 0 && absType) {
+        statusStyle = "background: var(--purple-dim); border-left: 3px solid var(--purple); color: var(--purple);";
+      }
+
+      let html = `<div style="display:flex; flex-direction:column; gap:4px; padding: 4px; min-height: 32px; border-radius: 4px; ${statusStyle}">`;
+      if (parts.length > 0) html += `<span style="font-weight: 600;">${parts.join(' + ')}</span>`;
+      if (absType) html += `<span class="abs-${absType}" style="padding:1px 6px; border-radius:3px; font-size:10px; width:fit-content; margin: ${parts.length > 0 ? '0' : '0 auto'};">${absType}</span>`;
+      html += `</div>`;
+      
+      return (parts.length === 0 && !absType) ? `<span style="color:var(--gray); opacity:0.3">-</span>` : html;
+    };
+
+    // On ajoute une classe spécifique 'col-doc2-data' pour pouvoir la masquer en JS
+    tr.innerHTML = `
+      <td class="col-date">${formatDate(row.date)}</td>
+      <td class="col-heure">${row.heure}</td>
+      <td style="text-align:center; border-right: 1px solid var(--border); padding: 4px 8px;">${getDocSummary(doc1)}</td>
+      <td class="col-doc2-data" style="text-align:center; padding: 4px 8px; ${hasDoc2 ? '' : 'display:none'}">${getDocSummary(doc2)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// --- FONCTIONS UTILITAIRES ---
+
+function addDropdownItem(container, html, value, onClick) {
+  const item = document.createElement('div');
+  item.className = 'dd-item';
+  item.innerHTML = html;
+  item.onclick = (e) => { e.stopPropagation(); onClick(); };
+  container.appendChild(item);
+  return item;
+}
+
+function showDropdown(dropdown, rect) {
+  dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+  dropdown.style.left = (rect.left + window.scrollX) + 'px';
+  dropdown.style.display = 'block';
+
+  const closeHandler = (e) => {
+    // Si on clique en dehors du dropdown ET que ce n'est pas le TD lui-même
+    if (!dropdown.contains(e.target)) {
+      closeDropdown();
+      document.removeEventListener('mousedown', closeHandler);
+    }
+  };
+  
+  // Petit délai pour éviter que le clic d'ouverture ne ferme direct
+  setTimeout(() => document.addEventListener('mousedown', closeHandler), 100);
+}
+
+function confirmPlanningSelection(row, colKey, value, td) {
+  const oldVal = (allData.find(r => r.id === row.id)?.[colKey] || '').trim();
+
+  if (!pendingEdits[row.id]) pendingEdits[row.id] = {};
+  pendingEdits[row.id][colKey] = value;
+  td.textContent = value;
+  td.style.borderColor = 'var(--amber)';
+  const idx = allData.findIndex(r => r.id === row.id);
+  if(idx !== -1) allData[idx][colKey] = value;
+  closeDropdown();
+  buildStats();
+
+  // Enregistrement dans l'historique si la valeur a changé
+  if (value !== oldVal) {
+    _supabase.from('planning_history').insert({
+      modified_by : currentUser.login,
+      row_date    : row.date,
+      row_heure   : row.heure,
+      col_key     : colKey,
+      old_value   : oldVal,
+      new_value   : value
+    }).then(({ error }) => {
+      if (error) console.warn('Historique non enregistré :', error.message);
+    });
+  }
+}
+
+async function confirmAbsenceSelection(row, colKey, value, td) {
+  if (!row || !row.id) {
+        console.error("Erreur : ID de ligne manquant", row);
+        return;
+       }
+
+  if (!pendingEditsAbs[row.id]) pendingEditsAbs[row.id] = {};
+  const finalValue = value === "" ? null : value;
+  pendingEditsAbs[row.id][colKey] = finalValue;
+  
+  // Mise à jour visuelle immédiate
+  td.textContent = value;
+  td.className = value ? `abs-${value}` : '';
+  if (value) td.style.outline = "2px solid var(--amber)"; // Indicateur de modif en cours
+  
+  // Mise à jour de la donnée locale pour les compteurs
+  const idx = absencesData.findIndex(a => a.id === row.id);
+  if (idx !== -1) absencesData[idx][colKey] = value;
+  
+  closeDropdown();
+  buildStats();
+}
+
+function closeDropdown() {
+  document.getElementById('edit-dropdown').style.display = 'none';
+}
+
+async function saveAllPending() {
+  // Désactiver le bouton pendant l'envoi
+  const saveBtn = document.getElementById('btn-save-all');
+  saveBtn.disabled = true;
+  saveBtn.textContent = "⏳ Sauvegarde...";
+
+  try {
+    // 1. Sauvegarde Planning Clinique
+    for (const rowId in pendingEdits) {
+      const updates = pendingEdits[rowId];
+      const { error } = await _supabase.from('planning').update(updates).eq('id', rowId);
+      if (error) throw error;
+    }
+    // 2. Sauvegarde Absences
+    for (const rowId in pendingEditsAbs) {
+                 const updatesAbs = pendingEditsAbs[rowId];
+                 const { error } = await _supabase.from('absences').update(updatesAbs).eq('id', rowId);
+                 if (error) throw error;
+           }
+
+    pendingEdits = {};
+    pendingEditsAbs = {};
+    toast('Modifications sauvegardées ✓');
+    
+    // On quitte le mode édition proprement
+    isEditMode = false;
+    document.body.classList.remove('edit-mode');
+    document.getElementById('btn-toggle-edit').textContent = "✏️ Modifier";
+    document.getElementById('btn-toggle-edit').classList.replace('btn-danger', 'btn-ghost');
+    saveBtn.style.display = 'none';
+
+
+           isBrushMode = false; // Désactive la logique du pinceau
+           const btnBrush = document.getElementById('btn-brush');
+           if (btnBrush) {
+               btnBrush.style.background = 'transparent';
+               btnBrush.style.borderColor = 'var(--border)';
+            }
+           document.getElementById('brush-container').style.display = 'none';
+           document.getElementById('brush-picker-wrapper').style.display = 'none';
+
+
+    await loadData();
+  } catch (err) {
+    toast('Erreur sauvegarde : ' + err.message, 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "💾 Sauvegarder";
+  }
+}
+
+function buildStats() {
+  const list = document.getElementById('stats-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const stats = {};
+
+  if (currentTab === 'planning') {
+    currentFilteredRows.forEach(row => {
+      DOCTOR_COLS.forEach(col => {
+        const doc = (row[col] || '').trim().toUpperCase();
+        if (doc && doc.length <= 6 && visibleCols[col]) {
+          if (!stats[doc]) stats[doc] = { total: 0, Garde: 0, Astr: 0, BIPng : 0, BIPv : 0 };
+          stats[doc].total++;
+          if (col === 'Garde') stats[doc].Garde++;
+          if (col === 'Astr')  stats[doc].Astr++;
+          if (col === 'BIPng')  stats[doc].BIPng++;
+          if (col === 'BIPv')  stats[doc].BIPv++;
+        }
+      });
+    });
+  } else {
+    currentFilteredAbs.forEach(abs => {
+      absenceColNames.forEach(docCol => {
+        const type = abs[docCol];
+        if (type && absVisibleTypes.has(type)) {
+          const name = docCol.toUpperCase();
+          if (!stats[name]) stats[name] = { total: 0, types: {} };
+          stats[name].total++;
+          stats[name].types[type] = (stats[name].types[type] || 0) + 1;
+        }
+      });
+    });
+  }
+
+  const sorted = Object.entries(stats).sort((a, b) => a[0].localeCompare(b[0]));
+
+  sorted.forEach(([name, data]) => {
+    const row = document.createElement('div');
+    row.className = 'stat-row';
+    if (doctorFilter === name) row.classList.add('active-filter');
+    
+    row.onclick = () => {
+      doctorFilter = (doctorFilter === name) ? null : name;
+      onFilterChange();
+    };
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'stat-name';
+    nameSpan.textContent = name;
+
+    const badgeWrap = document.createElement('div');
+    badgeWrap.className = 'stat-badges';
+
+    if (currentTab === 'planning') {
+      if (data.Garde > 0) badgeWrap.innerHTML += `<span class="stat-badge" style="color:var(--red)">G:${data.Garde}</span>`;
+      if (data.Astr > 0)  badgeWrap.innerHTML += `<span class="stat-badge" style="color:var(--amber)">A:${data.Astr}</span>`;
+      if (data.BIPv > 0)  badgeWrap.innerHTML += `<span class="stat-badge" style="color:var(--red)">Bv:${data.BIPv}</span>`;
+      if (data.BIPng > 0)  badgeWrap.innerHTML += `<span class="stat-badge" style="color:var(--amber)">Bng:${data.BIPng}</span>`; 
+    } else {
+      Object.entries(data.types).forEach(([type, count]) => {
+        const col = ABS_TYPE_COLORS[type] || 'var(--white)';
+        badgeWrap.innerHTML += `<span class="stat-badge" style="color:${col}">${type}:${count}</span>`;
+      });
+    }
+
+    const totalSpan = document.createElement('span');
+    totalSpan.className = 'stat-total';
+    totalSpan.textContent = data.total;
+
+    row.appendChild(nameSpan);
+    row.appendChild(badgeWrap);
+    row.appendChild(totalSpan);
+    list.appendChild(row);
+  });
+}
+
+function closeDropdown() {
+  document.getElementById('edit-dropdown').style.display = 'none';
+}
+
+
+// Restaure la session si l'utilisateur est déjà connecté
+// et gère le lien d'invitation reçu par email
+window.addEventListener('load', async () => {
+  const hash = window.location.hash;
+
+  // L'utilisateur arrive depuis un lien d'invitation
+  if (hash.includes('type=invite') || hash.includes('type=recovery')) {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (session) { showPasswordSetup(session); return; }
+  }
+
+  // Session déjà active (page rechargée)
+  const { data: { session } } = await _supabase.auth.getSession();
+  if (session) await applySession(session);
+});
+
+function showPasswordSetup(session) {
+  document.getElementById('auth-overlay').innerHTML = `
+    <div class="auth-box">
+      <h2>🔐 Choisir mon mot de passe</h2>
+      <p>Bienvenue ! Définissez votre mot de passe pour accéder au planning.</p>
+      <input type="password" id="new-pass"         placeholder="Nouveau mot de passe (8 car. min.)" />
+      <input type="password" id="new-pass-confirm" placeholder="Confirmer le mot de passe" />
+      <div id="setup-error" style="color:var(--red);font-size:11px;display:none;"></div>
+      <button class="btn-primary" onclick="setNewPassword()">Enregistrer</button>
+    </div>`;
+  document.getElementById('auth-overlay').style.display = 'flex';
+  window._pendingSession = session;
+}
+
+async function setNewPassword() {
+  const pass    = document.getElementById('new-pass').value;
+  const confirm = document.getElementById('new-pass-confirm').value;
+  const errEl   = document.getElementById('setup-error');
+  if (pass.length < 8) { errEl.textContent = 'Minimum 8 caractères.'; errEl.style.display = 'block'; return; }
+  if (pass !== confirm) { errEl.textContent = 'Les mots de passe ne correspondent pas.'; errEl.style.display = 'block'; return; }
+  const { error } = await _supabase.auth.updateUser({ password: pass });
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
+  window.history.replaceState({}, document.title, window.location.pathname);
+  toast('Mot de passe enregistré ✓');
+  await applySession(window._pendingSession);
+}
+
+</script>
+
+</body>
+</html>
