@@ -2351,9 +2351,10 @@ if (currentUser?.role === 'admin' && isEditMode) {
   if (canEditCol(col.key)) {
     td.addEventListener('dblclick', () => startEdit(td, row, col.key));
   }
-  td.addEventListener('click', () => { 
-    if (isBrushMode && canEditCol(col.key)) applyBrushValue(row, col.key, td); 
-  });
+td.addEventListener('click', (e) => { 
+  if (!canEditCol(col.key)) return;
+  if (isBrushMode || e.altKey) applyBrushValue(row, col.key, td); 
+});
 } else {
   td.addEventListener('dblclick', () => openPlanningDropdownReadOnly(td, row, col.key));
 };
@@ -2561,6 +2562,7 @@ function toggleEditMode() {
     btn.classList.replace('btn-ghost', 'btn-danger');
     save.style.display = 'inline';
     brushCont.style.display = 'flex';
+	document.getElementById('brush-picker-wrapper').style.display = 'flex';
     document.body.classList.add('edit-mode');  
   } else {
     // Sortie du mode édition (Annulation)
@@ -2636,7 +2638,7 @@ function openPlanningDropdown(td, row, colKey) {
   // 2. LOGIQUE DE VALIDATION (Touche Entrée ou Perte de focus)
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      confirmPlanningSelection(row, colKey, input.value.trim().toUpperCase(), td);
+      (row, colKey, input.value.trim().toUpperCase(), td);
     }
   });
 
@@ -2655,7 +2657,7 @@ function openPlanningDropdown(td, row, colKey) {
 
   // Option "Effacer"
   addDropdownItem(dropdown, '<span style="color:var(--red)">[ Effacer ]</span>', '', () => {
-    confirmPlanningSelection(row, colKey, '', td);
+    (row, colKey, '', td);
   });
 // 3 bis.  Médecins déjà présents sur la ligne → à exclure (conflit clinique)
 const alreadyOnRow = new Set();
@@ -2704,7 +2706,7 @@ const renderSuggestions = (filterText = "") => {
       addDropdownItem(dropdown, 
         `<span style="${colorStyle}">${init}${labelAbs}</span><span class="dd-count">${compteurs[init] || 0}</span>`, 
         init, 
-        () => confirmPlanningSelection(row, colKey, init, td)
+        () => (row, colKey, init, td)
       );
     });
   };
@@ -2956,6 +2958,9 @@ function confirmPlanningSelection(row, colKey, value, td) {
       if (error) console.warn('Historique non enregistré :', error.message);
     });
   }
+  // Charger silencieusement la valeur dans le pinceau
+  const brushInput = document.getElementById('brush-value');
+  if (brushInput && value) brushInput.value = value;
 }
 
 async function confirmAbsenceSelection(row, colKey, value, td) {
