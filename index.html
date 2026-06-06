@@ -2638,7 +2638,7 @@ function openPlanningDropdown(td, row, colKey) {
   // 2. LOGIQUE DE VALIDATION (Touche Entrée ou Perte de focus)
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      (row, colKey, input.value.trim().toUpperCase(), td);
+      confirmPlanningSelection(row, colKey, input.value.trim().toUpperCase(), td);
     }
   });
 
@@ -2657,7 +2657,7 @@ function openPlanningDropdown(td, row, colKey) {
 
   // Option "Effacer"
   addDropdownItem(dropdown, '<span style="color:var(--red)">[ Effacer ]</span>', '', () => {
-    (row, colKey, '', td);
+    confirmPlanningSelection(row, colKey, '', td);
   });
 // 3 bis.  Médecins déjà présents sur la ligne → à exclure (conflit clinique)
 const alreadyOnRow = new Set();
@@ -2706,7 +2706,7 @@ const renderSuggestions = (filterText = "") => {
       addDropdownItem(dropdown, 
         `<span style="${colorStyle}">${init}${labelAbs}</span><span class="dd-count">${compteurs[init] || 0}</span>`, 
         init, 
-        () => (row, colKey, init, td)
+        () => confirmPlanningSelection(row, colKey, init, td)
       );
     });
   };
