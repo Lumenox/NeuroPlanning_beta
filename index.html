@@ -2401,7 +2401,10 @@ function renderAbsences(absRows) {
   });
 
   const headerRow = document.createElement('tr');
-  headerRow.innerHTML = `<th class="col-date">Date</th><th style="color:var(--teal)">Heure</th>`;
+headerRow.innerHTML = `
+  <th class="col-date" style="position:sticky;left:0;z-index:12;background:var(--navy-light);min-width:100px;max-width:100px;">Date</th>
+  <th style="position:sticky;left:100px;z-index:12;background:var(--navy-light);color:var(--teal);min-width:60px;max-width:60px;">Heure</th>
+`;
   absenceColNames.forEach(doc => {
     headerRow.innerHTML += `<th style="color:var(--purple); text-align:center;">${doc}</th>`;
   });
@@ -2411,10 +2414,10 @@ function renderAbsences(absRows) {
     const tr = document.createElement('tr');
     tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
     
-    tr.innerHTML = `
-      <td class="col-date">${formatDate(row.date)}</td>
-      <td class="col-heure">${row.heure || ''}</td>
-    `;
+tr.innerHTML = `
+  <td class="col-date" style="position:sticky;left:0;z-index:2;background:var(--navy-mid);min-width:100px;max-width:100px;">${formatDate(row.date)}</td>
+  <td class="col-heure" style="position:sticky;left:100px;z-index:2;background:var(--navy-mid);min-width:60px;max-width:60px;">${row.heure || ''}</td>
+`;
     
     const key = `${row.date}_${row.heure}`;
     const clinicalStaff = clinicalIndex.get(key) || new Set();
