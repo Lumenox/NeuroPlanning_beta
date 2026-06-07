@@ -30,19 +30,24 @@
        --row-aprem-bg: #0d1b2a;
     }
 
-    body.light-mode {
-       --navy:        #FFFFFF;
-       --navy-mid:    #BDCBD9;   /*C44310 */
-       --navy-light:  #243d55;
-       --teal:        #207A70;
-       --teal-dim:    #205953;
-       --white:       #0f172a;    /* tout ce qui est blanc, Navy très sombre pour le texte */
-       --gray:        #64748b;    /* Gris plus foncé pour rester lisible */
-	--border:      #A1C0E3;
-       --row-matin-bg: #FFFFFF;
-       --row-aprem-bg: #F7F9FB;
-       /* On garde le --teal pour les accents, ça marche très bien en clair aussi */
-    }
+body.light-mode {
+  --navy:        #F4F6F8;   /* fond principal : gris warm très léger */
+  --navy-mid:    #FFFFFF;   /* surfaces (topbar, panels) : blanc pur */
+  --navy-light:  #E8EDF2;   /* hover, sélection : gris bleuté doux */
+  --teal:        #0D9488;   /* accent principal : teal vif lisible sur clair */
+  --teal-dim:    #CCFBF1;   /* fond accent teal : mint très pâle */
+  --red:         #DC2626;   /* rouge : plus saturé pour rester lisible */
+  --red-dim:     #FEE2E2;   /* fond rouge : rose très pâle */
+  --amber:       #D97706;   /* amber : ocre foncé lisible */
+  --amber-dim:   #FEF3C7;   /* fond amber : jaune crème */
+  --purple:      #7C3AED;   /* purple : violet franc */
+  --purple-dim:  #EDE9FE;   /* fond purple : lavande très pâle */
+  --white:       #1E293B;   /* texte principal : bleu-ardoise, pas noir pur */
+  --gray:        #64748B;   /* texte secondaire : slate medium */
+  --border:      #CBD5E1;   /* bordures : gris bleuté neutre */
+  --row-matin-bg: #FFFFFF;  /* matin : blanc pur */
+  --row-aprem-bg: #F1F5F9;  /* après-midi : gris très légèrement bleuté */
+}
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Sora', sans-serif; background: var(--navy); color: var(--white); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -408,6 +413,60 @@ background: rgba(248, 113, 113, 0.05); }
   display: flex; justify-content: flex-end;
 }
 
+/* Topbar plus contrastée en mode clair */
+body.light-mode #topbar {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border-bottom-color: var(--border);
+}
+
+/* Thead sticky : fond explicite pour éviter la transparence */
+body.light-mode thead th {
+  background: #E8EDF2;
+  color: #475569;
+}
+
+/* Cellules date/heure sticky */
+body.light-mode td.col-date,
+body.light-mode td.col-heure {
+  background: var(--row-matin-bg);
+}
+
+body.light-mode tr.creno-aprem td.col-date,
+body.light-mode tr.creno-aprem td.col-heure {
+  background: var(--row-aprem-bg);
+}
+
+/* Onglets */
+body.light-mode .tab-btn {
+  background: #E8EDF2;
+  color: #64748B;
+}
+body.light-mode .tab-btn.active {
+  background: #FFFFFF;
+  color: #1E293B;
+}
+
+/* Dropdown */
+body.light-mode #edit-dropdown {
+  background: #FFFFFF;
+  border-color: var(--amber);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+body.light-mode .dd-item:hover {
+  background: #F1F5F9;
+}
+
+/* Stats panel */
+body.light-mode #stats-panel {
+  background: #FFFFFF;
+  border-left-color: var(--border);
+}
+body.light-mode .stat-row:hover {
+  background: #F1F5F9;
+}
+
+
+	  
 @media print {
   body * { visibility: hidden; }
   #print-area, #print-area * { visibility: visible; }
