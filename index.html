@@ -412,7 +412,8 @@ background: rgba(248, 113, 113, 0.05); }
   border-top: 1px solid var(--border);
   display: flex; justify-content: flex-end;
 }
-
+	  
+/* === LIGHT MODE BONUS PARAMÈTRES === */
 /* Topbar plus contrastée en mode clair */
 body.light-mode #topbar {
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
@@ -466,7 +467,7 @@ body.light-mode .stat-row:hover {
 }
 
 
-	  
+/* === Print mode=== */ 
 @media print {
   body * { visibility: hidden; }
   #print-area, #print-area * { visibility: visible; }
