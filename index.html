@@ -408,6 +408,12 @@ background: rgba(248, 113, 113, 0.05); }
   display: flex; justify-content: flex-end;
 }
 
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area { position: absolute; inset: 0; }
+}
+	  
 [data-col="C_Periph"]   { border-left: 2px solid #FFF396 !important; }
 [data-col="HDJ1"]       { border-left: 2px solid #C9F07A !important; }
 [data-col="UNV1"]       { border-left: 2px solid #F0D37A !important; }
@@ -426,9 +432,8 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
 <div id="auth-overlay">
   <div class="auth-box">
     <h2>Neurologie · Planning</h2>
-    <p> version 1.02</p>
+    <p> version 1.10</p>
     <p>Entrez vos identifiants pour accéder au planning.</p>
-    <p>ID de test pour les viewer: 123 mdp 12345678</p>
     <input type="text" id="auth-login" placeholder="Email aphp ou APH" autocomplete="off" />
     <input type="password" id="auth-pass"  placeholder="Mot de passe" />
     <div id="auth-error" style="color:var(--red);font-size:11px;display:none;">Identifiants incorrects.</div>
@@ -459,7 +464,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
 
 
 <div id="topbar">
-  <span class="brand">🧠 Planning Neurologie v.1.02</span>
+  <span class="brand">🧠 Planning Neurologie v.1.10</span>
   <div class="controls">
     <div id="status-dot"></div>
     <span id="user-id-badge"></span>
@@ -479,6 +484,8 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
     <button id="btn-save-all"    class="btn-save"  style="display:none" onclick="saveAllPending()">💾 Sauvegarder</button>
     <div class="sep"></div>
 <button class="btn-ghost" onclick="refreshAll()">↺</button>
+<button class="btn-ghost" onclick="printPlanning()" title="Imprimer le planning" 
+  id="btn-print" style="display:none">🖨️</button>
 <button id="btn-conflicts-bell" class="btn-ghost" onclick="openConflictManager()" 
   title="Mes conflits" style="display:none; position:relative;">
   🔔
@@ -1073,6 +1080,7 @@ if (profile.preferences) {
           // Sécurité : on s'assure que la classe n'est pas là si ce n'est pas un admin
           document.body.classList.remove('is-admin');
           document.getElementById('btn-toggle-edit').style.display = 'none';
+	      document.getElementById('btn-print').style.display = 'inline';
           document.getElementById('btn-save-all').style.display = 'none';
           document.getElementById('stats-panel').classList.add('hidden');
      }
@@ -3165,7 +3173,224 @@ async function setNewPassword() {
   toast('Mot de passe enregistré ✓');
   await applySession(window._pendingSession);
 }
+function printPlanning() {
+  const dateFrom = document.getElementById('filter-date-from').value;
+  const dateTo   = document.getElementById('filter-date-to').value;
 
+  // Récupère les colonnes actuellement visibles
+  const visibleDataCols = COLUMNS.filter(col => {
+    if (col.group === 'meta') return false;
+    const isInterne = col.key.endsWith('_int') || col.key.endsWith('_int1') || col.key.endsWith('_int2');
+    return visibleCols[col.key] && (!isInterne || showInternes);
+  });
+
+  // Groupe → couleur (réutilise les tiennes)
+  const groupColors = {
+    neurog:'#FFF396', hdj:'#C9F07A', unv:'#F0D37A',
+    usi:'#F07AB5', bip:'#FFA89C', garde:'#E08924',
+    repos:'#F0FBFF', box:'#94a3b8'
+  };
+
+  // Construire l'en-tête de groupes (colspan correct)
+  const groupSpans = {};
+  visibleDataCols.forEach(col => {
+    groupSpans[col.group] = (groupSpans[col.group] || 0) + 1;
+  });
+
+  let groupHeaders = '';
+  const seenGroups = new Set();
+  visibleDataCols.forEach(col => {
+    if (!seenGroups.has(col.group)) {
+      seenGroups.add(col.group);
+      const color = groupColors[col.group] || '#ccc';
+      groupHeaders += `<th colspan="${groupSpans[col.group]}" 
+        style="text-align:center;background:#0d1b2a;color:${color};
+               border-bottom:1px solid ${color};font-size:8px;
+               letter-spacing:.06em;padding:4px 6px;">
+        ${GROUP_LABELS[col.group] || col.group}
+      </th>`;
+    }
+  });
+
+  let colHeaders = visibleDataCols.map(col => {
+    const color = groupColors[col.group] || '#ccc';
+    return `<th style="color:${color};background:#1a2d42;padding:5px 6px;
+                        font-size:9px;white-space:nowrap;">${col.label}</th>`;
+  }).join('');
+
+  // Construire les lignes
+  const absIdx = buildAbsenceIndex();
+  let rowsHtml = '';
+  let lastDate  = null;
+  let conflictCount = 0;
+
+  currentFilteredRows.forEach(row => {
+    // Calcul des médecins en conflit sur cette ligne
+    const doctorPos = {};
+    DOCTOR_COLS.forEach(col => {
+      if (CONFLICT_IGNORE_COLS.includes(col)) return;
+      const val = (row[col] || '').trim().toUpperCase();
+      if (val && val.length <= 6) {
+        if (!doctorPos[val]) doctorPos[val] = [];
+        doctorPos[val].push(col);
+      }
+    });
+    const conflicting = Object.entries(doctorPos)
+      .filter(([, cs]) => cs.length > 1).map(([d]) => d);
+    const isConflict  = conflicting.length > 0 && !acceptedConflicts[row.id];
+    const isAccepted  = conflicting.length > 0 &&  acceptedConflicts[row.id];
+    if (isConflict) conflictCount++;
+
+    const borderStyle = isConflict  ? 'border-left:2px solid #e24b4a;'
+                      : isAccepted  ? 'border-left:2px solid #fbbf24;'
+                      : '';
+    const rowBg = isConflict  ? 'background:#fff5f5;'
+                : isAccepted  ? 'background:#fffbeb;'
+                : (row.heure === '9h00') ? 'background:#fff;' : 'background:#f9fafb;';
+
+    const newDayBorder = row.date !== lastDate
+      ? 'border-top:1.5px solid #8fa3b5;' : '';
+    lastDate = row.date;
+
+    const dateCell = row.date !== lastDate || rowsHtml === ''
+      ? `<td style="color:#6b7f93;font-size:9px;${newDayBorder}">
+           ${formatDate(row.date)}
+         </td>`
+      : `<td style="color:#6b7f93;font-size:9px;"></td>`;
+
+    const cells = visibleDataCols.map(col => {
+      const val = (row[col.key] || '').trim().toUpperCase();
+      const isConflictCell = conflicting.includes(val) && !acceptedConflicts[row.id];
+      const isNonCli = (() => {
+        const dateAbs = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+        return dateAbs.has(val);
+      })();
+      const color = isConflictCell ? 'color:#e24b4a;font-weight:500;'
+                  : isNonCli      ? 'color:#9333ea;'
+                  : '';
+      return `<td style="${color}padding:3px 6px;white-space:nowrap;">${val}</td>`;
+    }).join('');
+
+    rowsHtml += `<tr style="${rowBg}${borderStyle}">
+      <td style="color:#6b7f93;font-size:9px;${newDayBorder}padding:3px 8px;">${formatDate(row.date)}</td>
+      <td style="color:#0f6e56;font-weight:500;${newDayBorder}padding:3px 6px;">${row.heure}</td>
+      ${cells}
+    </tr>`;
+  });
+
+  // Mise en forme de la date pour l'en-tête
+  const fmt = d => d ? new Date(d + 'T00:00:00')
+    .toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '…';
+
+  const printWindow = window.open('', '_blank', 'width=1200,height=800');
+  printWindow.document.write(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Planning Neurologie · ${fmt(dateFrom)} – ${fmt(dateTo)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 10mm 8mm 10mm 8mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 10px;
+      color: #1a2d42;
+      background: #fff;
+    }
+    .page-header {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      margin-bottom: 8px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #2dd4bf;
+    }
+    .page-header h1 { font-size: 14px; font-weight: 600; color: #0d1b2a; }
+    .page-header .meta { font-size: 10px; color: #6b7f93; }
+    table { width: 100%; border-collapse: collapse; table-layout: auto; }
+    thead th { padding: 4px 6px; font-size: 9px; letter-spacing:.04em; }
+    tbody td { padding: 3px 6px; border-bottom: 0.5px solid #e2e8f0; }
+    tbody tr:hover { background: #f0f4f8; }
+    .legend {
+      margin-top: 8px; display: flex; gap: 16px;
+      font-size: 9px; color: #6b7f93;
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .page-footer {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      border-top: 0.5px solid #ccc;
+      padding: 4px 8px;
+      font-size: 8px; color: #aaa;
+      display: flex; justify-content: space-between;
+      background: #fff;
+    }
+    @media print {
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div style="padding:4mm;">
+    <div class="page-header">
+      <div>
+        <h1>🧠 Planning Neurologie</h1>
+        <div class="meta">
+          Période : ${fmt(dateFrom)} → ${fmt(dateTo)} &nbsp;·&nbsp;
+          ${currentFilteredRows.length} créneaux &nbsp;·&nbsp;
+          ${visibleDataCols.length} colonnes affichées
+          ${conflictCount ? `&nbsp;·&nbsp; <span style="color:#e24b4a">⚠️ ${conflictCount} conflit(s)</span>` : ''}
+        </div>
+      </div>
+      <div class="meta" style="text-align:right;">
+        Imprimé le ${new Date().toLocaleDateString('fr-FR', 
+          { weekday:'long', day:'2-digit', month:'long', year:'numeric' })}<br>
+        par ${currentUser?.login || '—'}
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th rowspan="2" style="background:#0d1b2a;color:#8fa3b5;text-align:left;padding:4px 8px;min-width:75px">Date</th>
+          <th rowspan="2" style="background:#0d1b2a;color:#2dd4bf;text-align:left;padding:4px 6px;min-width:42px">Heure</th>
+          ${groupHeaders}
+        </tr>
+        <tr>${colHeaders}</tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#fff5f5;border:1px solid #e24b4a;"></div>
+        Conflit clinique non résolu
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#fffbeb;border:1px solid #fbbf24;"></div>
+        Conflit accepté
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="border-left:3px solid #9333ea;background:#faf5ff;"></div>
+        Conflit non-clinique (absence)
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Planning Neurologie v1.10 · Impression automatique</span>
+    <span>${fmt(dateFrom)} – ${fmt(dateTo)}</span>
+  </div>
+
+  <script>
+    window.onload = () => {
+      window.print();
+      // Ferme la fenêtre après impression (optionnel)
+      // window.onafterprint = () => window.close();
+    };
+  <\/script>
+</body>
+</html>`);
+  printWindow.document.close();
+}
 </script>
 
 </body>
