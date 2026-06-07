@@ -1080,10 +1080,10 @@ if (profile.preferences) {
           // Sécurité : on s'assure que la classe n'est pas là si ce n'est pas un admin
           document.body.classList.remove('is-admin');
           document.getElementById('btn-toggle-edit').style.display = 'none';
-	      document.getElementById('btn-print').style.display = 'inline';
           document.getElementById('btn-save-all').style.display = 'none';
           document.getElementById('stats-panel').classList.add('hidden');
      }
+	document.getElementById('btn-print').style.display = 'inline';
   const userBadge = document.getElementById('user-id-badge');
   if (userBadge) { userBadge.textContent = profile.hospital_id; userBadge.style.display = 'inline'; }
   window._userPrefs = profile.preferences || {};
