@@ -1,0 +1,7 @@
+-ajouts cosmétiques (lignes verticales et horizontales)
+-même les viewers peuvent double cliquer pour vérifier quel médecin est dispo sur un poste (dans le planning)
+-amélioration du mode clair
+-mode impression propre
+-pour les admin, toute valeur entrée est injectée au pinceau. 
+-le pinceau peut être activé par alt+clic
+-corrections cosmétiques
