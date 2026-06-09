@@ -1711,6 +1711,9 @@ subtitle.innerHTML =
   }
 
   modal.style.display = 'flex';
+// Synchroniser le select avec la valeur actuelle
+const horizonSelect = document.getElementById('conflict-horizon-select');
+if (horizonSelect) horizonSelect.value = conflictHorizonDays;
   updateBellBadge();
 }
 
@@ -2453,6 +2456,11 @@ td.addEventListener('click', (e) => {
   document.getElementById('conflict-count-noncli').textContent = conflictNonCliCount;
 }
 
+function changeConflictHorizon(days) {
+  conflictHorizonDays = parseInt(days);
+  openConflictManager(false, 'conflicts');
+}
+	
 function renderAbsences(absRows) {
   const thead = document.getElementById('abs-head');
   const tbody = document.getElementById('abs-body');
