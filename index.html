@@ -2795,6 +2795,7 @@ function openPlanningDropdownReadOnly(td, row, colKey) {
   const rect = td.getBoundingClientRect();
   dropdown.innerHTML = '';
 
+  // Compteurs par colonne (comme dans openPlanningDropdown)
   const compteurs = {};
   listeMedecins.forEach(m => compteurs[m.initiales.toUpperCase()] = 0);
   currentFilteredRows.forEach(r => {
@@ -2807,11 +2808,27 @@ function openPlanningDropdownReadOnly(td, row, colKey) {
   const absIdx = buildAbsenceIndex();
   const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
 
+  // Médecins déjà présents sur la ligne → à exclure
+  const alreadyOnRow = new Set();
+  DOCTOR_COLS.forEach(col => {
+    if (col === colKey) return;
+    if (CONFLICT_IGNORE_COLS.includes(col)) return;
+    const val = (row[col] || '').trim().toUpperCase();
+    if (val && val.length <= 6) alreadyOnRow.add(val);
+  });
+
   const isEditingInterneCol = colKey.endsWith('_int') || colKey.endsWith('_int1') || colKey.endsWith('_int2');
 
   const filteredMedecins = listeMedecins
-    .filter(med => isEditingInterneCol ? med.fonction === 'interne' : med.fonction !== 'interne')
-    .sort((a, b) => (compteurs[a.initiales.toUpperCase()] || 0) - (compteurs[b.initiales.toUpperCase()] || 0));
+    .filter(med => {
+      const medIsInterne = med.fonction === 'interne';
+      if (isEditingInterneCol) return medIsInterne;
+      else return !medIsInterne;
+    })
+    .filter(med => !alreadyOnRow.has(med.initiales.toUpperCase()))
+    .sort((a, b) =>
+      (compteurs[a.initiales.toUpperCase()] || 0) - (compteurs[b.initiales.toUpperCase()] || 0)
+    );
 
   filteredMedecins.forEach(med => {
     const init = med.initiales.toUpperCase();
