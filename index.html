@@ -146,7 +146,7 @@ width: 230px; background: var(--navy-mid); border-left: 1px solid var(--border);
     tbody td { border-bottom: 1px solid var(--border); padding: 6px 8px; height: var(--cell-h); white-space: nowrap; color: var(--white); min-width: 50px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 
      /* --- STYLES DES COLONNES SPÉCIFIQUES --- */
-     td.col-date { color: var(--white); font-size: 10px; position: sticky; left: 0; background: var(--navy-mid); z-index: 2; width: min-content; white-space: nowrap; border-right: 1px solid var(--border); }
+     td.col-date { color: var(--gray); font-size: 10px; position: sticky; left: 0; background: var(--navy-mid); z-index: 2; width: min-content; white-space: nowrap; border-right: 1px solid var(--border); }
      td.col-heure { color: var(--teal); position: sticky; left: 100px; font-size: 11px; background: var(--navy-mid); font-weight: 500; width: min-content;}
 
      /* --- GROUPEMENT MATIN / APREM --- */
@@ -2497,7 +2497,7 @@ if (conflicting.length && conflictStatus === 'conflict') {
       td.dataset.col = col.key;
 
       if (col.key === 'date') {
-        td.className = 'col-date'; td.textContent = (row.heure === '9h00') ? formatDate(val) : '';
+        td.className = 'col-date'; td.textContent = formatDate(val);
         const myInitiales = currentUser?.initiales?.trim().toUpperCase();
 const isSoleConflict = conflicting.length === 1 
                     && myInitiales 
@@ -2596,7 +2596,7 @@ headerRow.innerHTML = `
     tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
     
 tr.innerHTML = `
-  <td class="col-date" style="position:sticky;left:0;z-index:2;background:var(--navy-mid);min-width:100px;max-width:100px;">${row.heure === '9h00' ? formatDate(row.date) : ''}</td>
+  <td class="col-date" style="position:sticky;left:0;z-index:2;background:var(--navy-mid);min-width:100px;max-width:100px;">${formatDate(row.date)}</td>
   <td class="col-heure" style="position:sticky;left:100px;z-index:2;background:var(--navy-mid);min-width:60px;max-width:60px;">${row.heure || ''}</td>
 `;
     
@@ -3110,7 +3110,7 @@ currentFilteredRows.forEach(row => {
 
     // On ajoute une classe spécifique 'col-doc2-data' pour pouvoir la masquer en JS
     tr.innerHTML = `
-      <td class="col-date">${row.heure === '9h00' ? formatDate(row.date) : ''}</td>
+      <td class="col-date">${formatDate(row.date)}</td>
       <td class="col-heure">${row.heure}</td>
       <td style="text-align:center; border-right: 1px solid var(--border); padding: 4px 8px;">${getDocSummary(doc1)}</td>
       <td class="col-doc2-data" style="text-align:center; padding: 4px 8px; ${hasDoc2 ? '' : 'display:none'}">${getDocSummary(doc2)}</td>
