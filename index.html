@@ -3187,7 +3187,7 @@ function computeRiskWindow(doctor) {
 
   // La prochaine période attendue commence ~SECR_ROTATION_EVERY_WEEKS semaines après
   const start = new Date(lastSalleDate);
-  start.setDate(start.getDate() + SECR_ROTATION_EVERY_WEEKS * 7);
+  start.setDate(start.getDate() + SECR_ROTATION_EVERY_WEEKS * 7 + 3);  //+3 car sinon ça tombe sur un vendredi...
 
   const end = new Date(start);
   end.setDate(end.getDate() + SECR_ROTATION_DURATION_WEEKS * 7 - 1);
