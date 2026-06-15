@@ -569,6 +569,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
   <button class="tab-btn tab-planning active" onclick="switchTab('planning')">🏥 Planning clinique</button>
   <button class="tab-btn tab-absences"        onclick="switchTab('absences')">🌴 Absences / Non clinique</button>
   <button class="tab-btn tab-semainier"         onclick="switchTab('semainier')">📅 Semainier </button>
+  <button class="tab-btn tab-secretariat"       onclick="switchTab('secretariat')">📋 Gestion Cs</button>
 </div>
 
 <div id="toolbar">
@@ -659,6 +660,101 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
                  <tbody id="semainier-body"></tbody>
               </table>
          </div>
+
+<!-- ===== ONGLET SECRÉTARIAT ===== -->
+<div id="secretariat-wrap" style="display:none; flex:1; overflow:auto;">
+
+  <div id="secretariat-controls" style="
+    padding: 12px 24px;
+    background: var(--navy-mid);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 20; flex-wrap: wrap;">
+
+    <label style="color: var(--teal); font-family: 'DM Mono'; font-size: 11px;">Médecin :</label>
+    <select id="select-secr-doc" onchange="renderSecretariat()"
+      style="background: var(--navy); color: var(--white); border: 1px solid var(--teal);
+             padding: 4px 8px; border-radius: 6px; font-family: 'DM Mono'; font-size: 11px;">
+    </select>
+
+    <div style="width:1px; height:20px; background:var(--border);"></div>
+
+    <label style="font-family:'DM Mono'; font-size:11px; color:var(--gray);">Simulation risque salle :</label>
+    <label style="position:relative; display:inline-block; width:36px; height:20px;">
+      <input type="checkbox" id="secr-sim-toggle" checked onchange="renderSecretariat()"
+        style="opacity:0; width:0; height:0; position:absolute;">
+      <span id="secr-sim-slider" style="
+        position:absolute; inset:0; background:var(--teal-dim);
+        border:1px solid var(--teal); border-radius:20px; cursor:pointer; transition:background .2s;">
+        <span id="secr-sim-thumb" style="
+          position:absolute; top:3px; left:3px;
+          width:14px; height:14px; border-radius:50%;
+          background:var(--teal); transition:transform .2s;"></span>
+      </span>
+    </label>
+    <script>
+      document.getElementById('secr-sim-toggle').addEventListener('change', function() {
+        const thumb = document.getElementById('secr-sim-thumb');
+        thumb.style.transform = this.checked ? 'translateX(16px)' : '';
+      });
+    </script>
+
+    <div style="width:1px; height:20px; background:var(--border);"></div>
+    <span id="secr-sim-info" style="font-family:'DM Mono'; font-size:10px; color:var(--amber);"></span>
+  </div>
+
+  <!-- Légende -->
+  <div id="secr-legend" style="
+    display:flex; gap:14px; flex-wrap:wrap;
+    padding: 7px 24px; background: var(--navy-mid);
+    border-bottom: 1px solid var(--border); font-family:'DM Mono'; font-size:9px; color:var(--gray);">
+    <span style="display:flex;align-items:center;gap:5px;">
+      <span style="width:9px;height:9px;border-radius:2px;background:var(--red-dim);border:1px solid var(--red);display:inline-block;"></span> Salle confirmée (planning)
+    </span>
+    <span style="display:flex;align-items:center;gap:5px;">
+      <span style="width:9px;height:9px;border-radius:2px;background:var(--amber-dim);border:1px solid var(--amber);display:inline-block;"></span> Période à risque estimée
+    </span>
+    <span style="display:flex;align-items:center;gap:5px;">
+      <span style="width:9px;height:9px;border-radius:2px;background:var(--purple-dim);border:1px solid var(--purple);display:inline-block;"></span> Jour férié
+    </span>
+    <span style="display:flex;align-items:center;gap:5px;">
+      <span style="width:9px;height:9px;border-radius:2px;background:var(--navy-light);border:1px solid var(--border);display:inline-block;"></span> Week-end
+    </span>
+  </div>
+
+  <table id="secretariat-table" style="border-collapse:collapse; font-family:'DM Mono'; font-size:11px; min-width:100%;">
+    <thead>
+      <tr>
+        <th rowspan="2" style="
+          position:sticky; top:62px; left:0; z-index:25;
+          background:var(--navy-light); padding:8px 8px; text-align:left;
+          font-size:10px; font-weight:500; color:var(--gray); letter-spacing:.06em;
+          width:100px; min-width:100px; border-right:1px solid var(--border);">Date</th>
+        <th rowspan="2" style="
+          position:sticky; top:62px; left:100px; z-index:25;
+          background:var(--navy-light); padding:8px 8px; text-align:left;
+          font-size:10px; font-weight:500; color:var(--gray);
+          width:60px; min-width:60px;">Heure</th>
+        <th rowspan="2" id="secr-header-doc" style="
+          position:sticky; top:62px; z-index:15;
+          background:var(--navy-light); padding:8px 12px; text-align:center;
+          font-size:10px; font-weight:500; color:var(--teal);
+          width:130px; min-width:130px;
+          border-right:2px solid var(--teal); border-bottom:1px solid var(--teal);">Médecin</th>
+        <th colspan="9" style="
+          position:sticky; top:62px; z-index:15;
+          background:var(--navy-light); padding:6px 8px; text-align:center;
+          font-size:9px; font-weight:500; color:#94a3b8; letter-spacing:.08em;
+          border-left:2px solid #94a3b830; border-bottom:1px solid var(--border);">BOX — Consultations</th>
+      </tr>
+      <tr id="secr-box-headers">
+        <!-- Les 9 BOX headers sont injectés en JS -->
+      </tr>
+    </thead>
+    <tbody id="secretariat-body"></tbody>
+  </table>
+</div>
+<!-- ===== FIN ONGLET SECRÉTARIAT ===== -->
   </div>
 
   <div id="stats-panel">
@@ -730,6 +826,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
           <option value="planning">🏥 Planning clinique</option>
           <option value="absences">🌴 Absences / Non clinique</option>
           <option value="semainier">📅 Semainier</option>
+          <option value="secretariat">📋 Gestion Cs</option>
         </select>
       </div>
     </div>
@@ -2174,10 +2271,11 @@ function onFilterChange() {
   } else if (currentTab === 'absences') {
     applyAbsFilters();
   } else if (currentTab === 'semainier') {
-    // Le semainier dépend de currentFilteredRows, on doit donc 
-    // rafraîchir les données filtrées avant de redessiner
     applyFilters(); 
     renderSemainier();
+  } else if (currentTab === 'secretariat') {
+    applyFilters();
+    renderSecretariat();
   }
   buildStats();
 }
@@ -2922,14 +3020,19 @@ function populateSemainierDocs() {
           
 }
 
-// 2. Mise à jour de switchTab pour gérer le nouvel onglet
+// 2. Mise à jour de switchTab pour gérer les onglets semainier + secrétariat
 const originalSwitchTab = switchTab;
 switchTab = function(tab) {
-  originalSwitchTab(tab); // Appelle l'ancienne logique
-  document.getElementById('semainier-wrap').style.display = (tab === 'semainier') ? 'block' : 'none';
+  originalSwitchTab(tab);
+  document.getElementById('semainier-wrap').style.display     = (tab === 'semainier')    ? 'block' : 'none';
+  document.getElementById('secretariat-wrap').style.display   = (tab === 'secretariat')  ? 'block' : 'none';
   if (tab === 'semainier') {
     if (document.getElementById('select-semainier-doc').options.length === 0) populateSemainierDocs();
     renderSemainier();
+  }
+  if (tab === 'secretariat') {
+    if (document.getElementById('select-secr-doc').options.length === 0) populateSecretariatDoc();
+    renderSecretariat();
   }
 };
 
@@ -3016,6 +3119,248 @@ currentFilteredRows.forEach(row => {
   });
 }
 
+
+
+
+// ══════════════════════════════════════════════════════════════════
+// ONGLET SECRÉTARIAT
+// ══════════════════════════════════════════════════════════════════
+
+// Constantes du pattern de rotation — à ajuster selon le service
+const SECR_ROTATION_EVERY_WEEKS  = 5;  // toutes les combien de semaines une période salle revient
+const SECR_ROTATION_DURATION_WEEKS = 5; // durée d'une période salle
+
+// Colonnes considérées comme "salle" (hors BOX et consultations externes)
+const SALLE_COLS = ['UNV1','UNV2','USI1','USI2','HDJ1','HDJ2','HDJ3'];
+
+// Jours fériés français (à compléter chaque année)
+const JOURS_FERIES = new Set([
+  '2025-01-01','2025-04-21','2025-05-01','2025-05-08','2025-05-29',
+  '2025-06-09','2025-07-14','2025-08-15','2025-11-01','2025-11-11','2025-12-25',
+  '2026-01-01','2026-04-06','2026-05-01','2026-05-08','2026-05-14',
+  '2026-05-25','2026-07-14','2026-08-15','2026-11-01','2026-11-11','2026-12-25',
+]);
+
+const BOX_COLS = ['BOX1','BOX2','BOX3','BOX4','BOX5','BOX6','BOX7','BOX8','BOX9'];
+
+function populateSecretariatDoc() {
+  const sel = document.getElementById('select-secr-doc');
+  sel.innerHTML = '<option value="">-- Choisir --</option>';
+  listeMedecins
+    .filter(m => m.fonction !== 'interne')
+    .forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.initiales.toUpperCase();
+      opt.textContent = m.initiales;
+      sel.appendChild(opt);
+    });
+  if (currentUser?.initiales) {
+    sel.value = currentUser.initiales.toUpperCase();
+  }
+  // Injecter les headers BOX une seule fois
+  const hRow = document.getElementById('secr-box-headers');
+  hRow.innerHTML = BOX_COLS.map(k => `
+    <th data-col="${k}" style="
+      position:sticky; top:97px; z-index:14;
+      background:var(--navy-light); padding:6px 4px; text-align:center;
+      font-size:9px; font-weight:500; color:#94a3b8;
+      width:54px; min-width:54px;
+      border-left:2px solid #94a3b830; letter-spacing:.04em;">${k}</th>
+  `).join('');
+}
+
+function computeRiskWindow(doctor) {
+  // Cherche la dernière date où ce médecin est en salle dans allData
+  const init = doctor.trim().toUpperCase();
+  let lastSalleDate = null;
+
+  allData.forEach(row => {
+    SALLE_COLS.forEach(col => {
+      if ((row[col] || '').trim().toUpperCase() === init) {
+        const d = new Date(row.date + 'T00:00:00');
+        if (!lastSalleDate || d > lastSalleDate) lastSalleDate = d;
+      }
+    });
+  });
+
+  if (!lastSalleDate) return null;
+
+  // La prochaine période attendue commence ~SECR_ROTATION_EVERY_WEEKS semaines après
+  const start = new Date(lastSalleDate);
+  start.setDate(start.getDate() + SECR_ROTATION_EVERY_WEEKS * 7);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + SECR_ROTATION_DURATION_WEEKS * 7 - 1);
+
+  return { start, end, lastSalleDate };
+}
+
+function getDateStatus(dateStr, doctor, riskWindow) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 0=dim, 6=sam
+
+  if (dow === 0 || dow === 6) return 'weekend';
+  if (JOURS_FERIES.has(dateStr))  return 'ferie';
+
+  // Salle déjà confirmée dans le planning ?
+  const init = doctor.trim().toUpperCase();
+  const rows = allData.filter(r => r.date === dateStr);
+  for (const row of rows) {
+    for (const col of SALLE_COLS) {
+      if ((row[col] || '').trim().toUpperCase() === init) return 'salle';
+    }
+  }
+
+  // Dans la fenêtre de risque estimé ?
+  if (riskWindow && d >= riskWindow.start && d <= riskWindow.end) return 'risque';
+
+  return 'ok';
+}
+
+function renderSecretariat() {
+  const doctor  = document.getElementById('select-secr-doc').value;
+  const simOn   = document.getElementById('secr-sim-toggle').checked;
+  const tbody   = document.getElementById('secretariat-body');
+  const infoEl  = document.getElementById('secr-sim-info');
+  const legendEl = document.getElementById('secr-legend');
+
+  legendEl.style.display = simOn ? 'flex' : 'none';
+  document.getElementById('secr-header-doc').textContent = doctor || 'Médecin';
+
+  tbody.innerHTML = '';
+  if (!doctor) { infoEl.textContent = ''; return; }
+
+  const riskWindow = simOn ? computeRiskWindow(doctor) : null;
+
+  if (simOn) {
+    if (riskWindow) {
+      const fmtOpts = { day:'2-digit', month:'2-digit', year:'numeric' };
+      const s = riskWindow.start.toLocaleDateString('fr-FR', fmtOpts);
+      const e = riskWindow.end.toLocaleDateString('fr-FR', fmtOpts);
+      const last = riskWindow.lastSalleDate.toLocaleDateString('fr-FR', fmtOpts);
+      infoEl.textContent = `Dernière salle : ${last} → fenêtre risque estimée : ${s} – ${e}`;
+    } else {
+      infoEl.textContent = 'Aucune salle trouvée dans le planning chargé — simulation impossible.';
+    }
+  } else {
+    infoEl.textContent = '';
+  }
+
+  const absIdx = buildAbsenceIndex();
+  const init   = doctor.trim().toUpperCase();
+  let lastDate = null;
+
+  currentFilteredRows.forEach(row => {
+    const status = simOn ? getDateStatus(row.date, doctor, riskWindow) : 'ok';
+
+    // ── Cellule "Activité médecin" (style semainier) ──────────────────
+    let parts = [];
+    COLUMNS.forEach(col => {
+      if (!DOCTOR_COLS.includes(col.key)) return;
+      if (!visibleCols[col.key]) return;
+      const val = (row[col.key] || '').trim().toUpperCase();
+      if (val === init) parts.push(col.label);
+    });
+
+    const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+    const absType = dateAbsences.get(init)?.type;
+    const isSalleConfirmed = parts.some(p => SALLE_COLS.map(k => {
+      const c = COLUMNS.find(c => c.key === k); return c ? c.label : k;
+    }).includes(p));
+    const isConflict = parts.filter(p => {
+      const key = COLUMNS.find(c => c.label === p)?.key;
+      return key && !CONFLICT_IGNORE_COLS.includes(key);
+    }).length > 1;
+    const isAccepted = acceptedConflicts[row.id] === true;
+
+    let cellStyle = '';
+    if (isConflict)
+      cellStyle = isAccepted
+        ? 'background:var(--amber-dim);border-left:3px solid var(--amber);color:var(--amber);'
+        : 'background:var(--red-dim);border-left:3px solid var(--red);color:var(--red);';
+    else if (simOn && status === 'salle')
+      cellStyle = 'background:var(--red-dim);border-left:3px solid var(--red);color:var(--red);';
+    else if (simOn && status === 'risque')
+      cellStyle = 'background:var(--amber-dim);border-left:3px solid var(--amber);color:var(--amber);';
+    else if (simOn && status === 'weekend')
+      cellStyle = 'opacity:.35;';
+    else if (simOn && status === 'ferie')
+      cellStyle = 'background:var(--purple-dim);border-left:3px solid var(--purple);color:var(--purple);';
+
+    let actHtml = `<div style="display:flex;flex-direction:column;gap:3px;padding:3px 6px;border-radius:4px;min-height:28px;${cellStyle}">`;
+    if (parts.length > 0) actHtml += `<span style="font-weight:600;font-size:10px;">${parts.join(' + ')}</span>`;
+    if (absType)          actHtml += `<span class="abs-${absType}" style="padding:1px 5px;border-radius:3px;font-size:9px;width:fit-content;">${absType}</span>`;
+    if (simOn && status === 'risque' && parts.length === 0 && !absType)
+      actHtml += `<span style="font-size:9px;opacity:.7">⚠ risque salle</span>`;
+    if (simOn && status === 'salle' && parts.length === 0)
+      actHtml += `<span style="font-size:9px;">⛔ salle confirmée</span>`;
+    if (simOn && status === 'ferie' && parts.length === 0)
+      actHtml += `<span style="font-size:9px;">Jour férié</span>`;
+    if (parts.length === 0 && !absType && !['risque','salle','ferie'].includes(status))
+      actHtml += `<span style="color:var(--gray);opacity:.3;font-size:10px;">—</span>`;
+    actHtml += `</div>`;
+
+    // ── Cellules BOX (même logique que le planning) ───────────────────
+const boxTds = BOX_COLS.map(colKey => {
+      const val = (row[colKey] || '').trim();
+      const pending = pendingEdits[row.id]?.[colKey];
+      const displayVal = pending !== undefined ? pending : val;
+
+      const td = document.createElement('td');
+      td.dataset.col = colKey;
+      td.style.cssText = 'text-align:center; border-left:2px solid #94a3b815; font-size:10px;';
+
+      if (simOn) {
+        if (status === 'salle')        td.style.background = 'var(--red-dim)';
+        else if (status === 'risque')  td.style.background = 'var(--amber-dim)';
+        else if (status === 'weekend') td.style.opacity    = '0.3';
+        else if (status === 'ferie')   td.style.background = 'var(--purple-dim)';
+      }
+
+      if (pending !== undefined) td.style.borderColor = 'var(--amber)';
+
+      if (displayVal) {
+        if (displayVal.toUpperCase() === init) {
+          td.innerHTML = `<span style="color:var(--teal);font-weight:600;">${displayVal}</span>`;
+        } else {
+          td.textContent = displayVal;
+        }
+      }
+
+      // Édition : même logique que le planning principal
+      if (currentUser?.role === 'admin' && isEditMode && canEditCol(colKey)) {
+        td.classList.add('editable');
+        td.addEventListener('dblclick', () => openPlanningDropdown(td, row, colKey));
+        td.addEventListener('click', (e) => {
+          if (isBrushMode || e.altKey) applyBrushValue(row, colKey, td);
+        });
+      } else if (canEditCol(colKey)) {
+        td.classList.add('editable');
+        td.addEventListener('dblclick', () => openPlanningDropdownReadOnly(td, row, colKey));
+      }
+
+      return td;
+    });
+
+    // ── Ligne ─────────────────────────────────────────────────────────
+    const isNewDay = row.date !== lastDate;
+    lastDate = row.date;
+    const tr = document.createElement('tr');
+    tr.className = (row.heure === '9h00' ? 'creno-matin' : 'creno-aprem') + (isNewDay ? ' new-day' : '');
+    tr.innerHTML = `
+      <td class="col-date">${isNewDay ? formatDate(row.date) : ''}</td>
+      <td class="col-heure">${row.heure}</td>
+      <td style="padding:3px 6px; border-right:2px solid var(--teal)20; min-width:130px; max-width:160px;">${actHtml}</td>
+    `;
+      boxTds.forEach(td => tr.appendChild(td));
+
+    tbody.appendChild(tr);
+  });
+}
+// ══════════════════════════════════════════════════════════════════
+
+
+
 // --- FONCTIONS UTILITAIRES ---
 
 function addDropdownItem(container, html, value, onClick) {
@@ -3072,6 +3417,7 @@ function confirmPlanningSelection(row, colKey, value, td) {
   // Charger silencieusement la valeur dans le pinceau
   const brushInput = document.getElementById('brush-value');
   if (brushInput && value) brushInput.value = value;
+  if (currentTab === 'secretariat') renderSecretariat(); // à partir de toutes les colonnes (dont les BOX) : on la redessine pour qu'elle reflète immédiatement la modification.
 }
 
 async function confirmAbsenceSelection(row, colKey, value, td) {
