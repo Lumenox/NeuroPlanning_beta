@@ -2203,7 +2203,7 @@ async function loadData() {
 }
 
 async function loadAbsences() {
-  const { data, error } = await _supabase.from('absences').select('*').order('date');
+  const { data, error } = await _supabase.from('absences').select('*').order('date').order('heure');
   if (error) { toast('Erreur absences : ' + error.message, 'error'); return; }
   absencesData = data || [];
   applyAbsFilters();
@@ -2231,7 +2231,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'planning' }, payload => {
       if (payload.eventType === 'UPDATE') {
         const idx = allData.findIndex(r => r.id === payload.new.id);
-        if (idx >= 0) allData[idx] = payload.new; else allData.push(payload.new);
+        if (idx >= 0) allData[idx] = payload.new; else allData.push(payload.new); absencesData.sort((a, b) => a.date.localeCompare(b.date) || a.heure.localeCompare(b.heure));
       } else if (payload.eventType === 'INSERT') {
         allData.push(payload.new);
         allData.sort((a, b) => a.date.localeCompare(b.date) || a.heure.localeCompare(b.heure));
@@ -2253,7 +2253,7 @@ function subscribeRealtimeAbsences() {
         if (idx >= 0) absencesData[idx] = payload.new; else absencesData.push(payload.new);
       } else if (payload.eventType === 'INSERT') {
         absencesData.push(payload.new);
-        absencesData.sort((a, b) => a.date.localeCompare(b.date));
+        absencesData.sort((a, b) => a.date.localeCompare(b.date) || a.heure.localeCompare(b.heure));
       } else if (payload.eventType === 'DELETE') {
         absencesData = absencesData.filter(r => r.id !== payload.old.id);
       }
@@ -2488,7 +2488,7 @@ if (conflicting.length && conflictStatus === 'conflict') {
   tr.title = '🌴 Conflit non-clinique : ' + nonCliConflicts.map(c => `${c.doctor} (${c.type})`).join(', ');
 }
 
-    tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
+    tr.classList.add(row.heure === '09:00:00' ? 'creno-matin' : 'creno-aprem');
 
     COLUMNS.forEach(col => {
       const td      = document.createElement('td');
@@ -2497,7 +2497,7 @@ if (conflicting.length && conflictStatus === 'conflict') {
       td.dataset.col = col.key;
 
       if (col.key === 'date') {
-        td.className = 'col-date'; td.textContent = formatDate(val);
+        td.className = 'col-date'; td.textContent = (row.heure === '09:00:00') ? formatDate(val) : '';
         const myInitiales = currentUser?.initiales?.trim().toUpperCase();
 const isSoleConflict = conflicting.length === 1 
                     && myInitiales 
@@ -2593,10 +2593,10 @@ headerRow.innerHTML = `
 
   absRows.forEach(row => {
     const tr = document.createElement('tr');
-    tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
+    tr.classList.add(row.heure === '09:00:00' ? 'creno-matin' : 'creno-aprem');
     
 tr.innerHTML = `
-  <td class="col-date" style="position:sticky;left:0;z-index:2;background:var(--navy-mid);min-width:100px;max-width:100px;">${formatDate(row.date)}</td>
+  <td class="col-date" style="position:sticky;left:0;z-index:2;background:var(--navy-mid);min-width:100px;max-width:100px;">${row.heure === '09:00:00' ? formatDate(row.date) : ''}</td>
   <td class="col-heure" style="position:sticky;left:100px;z-index:2;background:var(--navy-mid);min-width:60px;max-width:60px;">${row.heure || ''}</td>
 `;
     
@@ -3065,7 +3065,7 @@ currentFilteredRows.forEach(row => {
       tr.classList.add('new-day');
       lastDateSemainier = row.date;
     }
-    tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
+    tr.classList.add(row.heure === '09:00:00' ? 'creno-matin' : 'creno-aprem');
 	
     const getDocSummary = (doctor) => {
       if (!doctor) return "";
@@ -3110,7 +3110,7 @@ currentFilteredRows.forEach(row => {
 
     // On ajoute une classe spécifique 'col-doc2-data' pour pouvoir la masquer en JS
     tr.innerHTML = `
-      <td class="col-date">${formatDate(row.date)}</td>
+      <td class="col-date">${row.heure === '09:00:00' ? formatDate(row.date) : ''}</td>
       <td class="col-heure">${row.heure}</td>
       <td style="text-align:center; border-right: 1px solid var(--border); padding: 4px 8px;">${getDocSummary(doc1)}</td>
       <td class="col-doc2-data" style="text-align:center; padding: 4px 8px; ${hasDoc2 ? '' : 'display:none'}">${getDocSummary(doc2)}</td>
@@ -3131,7 +3131,7 @@ const SECR_ROTATION_EVERY_WEEKS  = 5;  // toutes les combien de semaines une pé
 const SECR_ROTATION_DURATION_WEEKS = 5; // durée d'une période salle
 
 // Colonnes considérées comme "salle" (hors BOX et consultations externes)
-const SALLE_COLS = ['UNV1','UNV2','USI1','USI2','HDJ1','HDJ2','HDJ3'];
+const SALLE_COLS = ['C_Periph','C_Cogn', 'UNV1','UNV2','USI1','USI2','HDJ1','HDJ2','HDJ3'];
 
 // Jours fériés français (à compléter chaque année)
 const JOURS_FERIES = new Set([
@@ -3346,7 +3346,7 @@ const boxTds = BOX_COLS.map(colKey => {
     const isNewDay = row.date !== lastDate;
     lastDate = row.date;
     const tr = document.createElement('tr');
-    tr.className = (row.heure === '9h00' ? 'creno-matin' : 'creno-aprem') + (isNewDay ? ' new-day' : '');
+    tr.className = (row.heure === '09:00:00' ? 'creno-matin' : 'creno-aprem') + (isNewDay ? ' new-day' : '');
     tr.innerHTML = `
       <td class="col-date">${isNewDay ? formatDate(row.date) : ''}</td>
       <td class="col-heure">${row.heure}</td>
@@ -3695,7 +3695,7 @@ function printPlanning() {
                       : '';
     const rowBg = isConflict  ? 'background:#fff5f5;'
                 : isAccepted  ? 'background:#fffbeb;'
-                : (row.heure === '9h00') ? 'background:#fff;' : 'background:#f9fafb;';
+                : (row.heure === '09:00:00') ? 'background:#fff;' : 'background:#f9fafb;';
 
     const newDayBorder = row.date !== lastDate
       ? 'border-top:1.5px solid #8fa3b5;' : '';
