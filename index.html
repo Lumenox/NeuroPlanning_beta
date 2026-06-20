@@ -492,7 +492,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
 <div id="auth-overlay">
   <div class="auth-box">
     <h2>Neurologie · Planning</h2>
-    <p> version 1.10</p>
+    <p> version 1.20</p>
     <p>Entrez vos identifiants pour accéder au planning.</p>
     <input type="text" id="auth-login" placeholder="Email aphp ou APH" autocomplete="off" />
     <input type="password" id="auth-pass"  placeholder="Mot de passe" />
@@ -524,7 +524,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
 
 
 <div id="topbar">
-  <span class="brand">🧠 Planning Neurologie v.1.10</span>
+  <span class="brand">🧠 Planning Neurologie v.1.20</span>
   <div class="controls">
     <div id="status-dot"></div>
     <span id="user-id-badge"></span>
@@ -570,6 +570,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
   <button class="tab-btn tab-absences"        onclick="switchTab('absences')">🌴 Absences / Non clinique</button>
   <button class="tab-btn tab-semainier"         onclick="switchTab('semainier')">📅 Semainier </button>
   <button class="tab-btn tab-secretariat"       onclick="switchTab('secretariat')">📋 Gestion Cs</button>
+  <button class="tab-btn tab-sandbox" id="tab-btn-sandbox" onclick="switchTab('sandbox')" style="display:none; color:var(--purple)">🧪 Sandbox</button>
 </div>
 
 <div id="toolbar">
@@ -755,6 +756,110 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
   </table>
 </div>
 <!-- ===== FIN ONGLET SECRÉTARIAT ===== -->
+
+
+<!-- ===== ONGLET sandbox ===== -->
+<div id="sandbox-wrap" style="display:none; flex:1; overflow:auto; flex-direction:column;">
+
+  <!-- État : pas de sandbox -->
+<div id="sandbox-empty-state" style="padding:60px; text-align:center;">
+    <p style="color:var(--gray); font-size:13px; margin-bottom:24px;">
+      Aucune sandbox active. Crée une copie temporaire du planning sur une période pour préparer de lourdes modifications sans risque.
+    </p>
+    <div style="display:flex; gap:12px; justify-content:center; align-items:flex-end; margin-bottom:20px;">
+      <div style="text-align:left;">
+        <label style="font-size:11px; color:var(--gray); display:block; margin-bottom:4px;">Du</label>
+        <input type="date" id="sandbox-create-from" />
+      </div>
+      <div style="text-align:left;">
+        <label style="font-size:11px; color:var(--gray); display:block; margin-bottom:4px;">Au</label>
+        <input type="date" id="sandbox-create-to" />
+      </div>
+    </div>
+    <div>
+      <label style="font-size:11px; color:var(--gray); display:block; margin-bottom:4px;">Note (optionnel)</label>
+      <input type="text" id="sandbox-create-note" placeholder="ex: préparation planning juillet" style="width:300px; margin-bottom:20px;" />
+    </div>
+    <div>
+      <button class="btn-primary" id="btn-create-sandbox" onclick="createSandbox()">🧪 Créer la sandbox</button>
+    </div>
+  </div>
+
+  <!-- État : sandbox active -->
+  <div id="sandbox-active-state" style="display:none; flex-direction:column; flex:1;">
+    <div id="sandbox-info-bar" style="padding:12px 24px; background:var(--purple-dim); border-bottom:1px solid var(--purple); display:flex; align-items:center; gap:16px; font-family:'DM Mono',monospace; font-size:11px;">
+      <span style="color:var(--purple); font-weight:600;">🧪 SANDBOX ACTIVE</span>
+      <span id="sandbox-info-period" style="color:var(--white);"></span>
+      <span id="sandbox-info-creator" style="color:var(--gray);"></span>
+      <div style="flex:1"></div>
+      <button class="btn-ghost" id="btn-compare-sandbox" onclick="compareSandboxWithReal()" style="font-size:11px; border-color:var(--amber); color:var(--amber);">🔍 Comparer avec le planning réel</button>
+      <button class="btn-save" id="btn-save-sandbox" onclick="saveSandboxPending()" style="font-size:11px;">💾 Sauvegarder</button>
+      <button class="btn-ghost" onclick="openPushModal()" style="font-size:11px;">🚀 Publier vers le planning réel</button>
+      <button class="btn-danger" onclick="deleteSandbox()" style="font-size:11px;">🗑️ Supprimer la sandbox</button>
+    </div>
+
+<div id="sandbox-table-zone" style="flex:1; overflow:auto; position:relative;">
+      <div id="sandbox-empty-rows" style="padding:60px; text-align:center; color:var(--gray); display:none;">Aucune ligne dans la sandbox.</div>
+      <table id="sandbox-table">
+        <thead id="sandbox-table-head"></thead>
+        <tbody id="sandbox-table-body"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ===== Fin ONGLET sandbox ===== -->
+
+<!-- ===== Push modal du sandbox ===== -->
+<div id="push-modal" style="position:fixed; inset:0; background:rgba(13,27,42,.92); display:none; align-items:center; justify-content:center; z-index:700;">
+  <div style="background:var(--navy-mid); border:1px solid var(--amber); border-radius:12px; padding:28px 32px; width:640px; max-width:95vw; max-height:85vh; display:flex; flex-direction:column; gap:18px; overflow-y:auto;">
+
+    <h3 style="font-family:'DM Mono',monospace; font-size:14px; color:var(--amber);">🚀 Publier vers le planning réel</h3>
+
+    <!-- Étape A : sélection période + colonnes -->
+    <div id="push-step-select">
+      <div style="display:flex; gap:16px; margin-bottom:16px;">
+        <div>
+          <label style="font-size:11px; color:var(--gray); display:block; margin-bottom:4px;">Du</label>
+          <input type="date" id="push-date-from" />
+        </div>
+        <div>
+          <label style="font-size:11px; color:var(--gray); display:block; margin-bottom:4px;">Au</label>
+          <input type="date" id="push-date-to" />
+        </div>
+      </div>
+
+      <label style="font-size:11px; color:var(--amber); display:block; margin-bottom:8px;">Groupes de colonnes à publier</label>
+      <div class="settings-group-grid" id="push-group-grid" style="margin-bottom:16px;"></div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn-ghost" onclick="closePushModal()">Annuler</button>
+        <button class="btn-primary" onclick="prepareDiffPreview()">Analyser →</button>
+      </div>
+    </div>
+
+    <!-- Étape B : prévisualisation du diff -->
+    <div id="push-step-preview" style="display:none; flex-direction:column; gap:14px;">
+      <div id="push-summary" style="font-family:'DM Mono',monospace; font-size:11px; color:var(--gray);"></div>
+      <div id="push-conflict-warning" style="display:none; background:var(--red-dim); border:1px solid var(--red); border-radius:8px; padding:12px 16px; font-size:12px; color:var(--red);"></div>
+      <div id="push-diff-list" style="display:flex; flex-direction:column; gap:6px; max-height:320px; overflow-y:auto;"></div>
+
+      <div style="display:flex; justify-content:space-between; gap:10px; border-top:1px solid var(--border); padding-top:14px;">
+        <button class="btn-ghost" onclick="backToPushSelect()">← Retour</button>
+        <div style="display:flex; gap:10px;">
+          <button class="btn-ghost" onclick="closePushModal()">Annuler</button>
+          <button class="btn-danger" id="btn-confirm-push" onclick="confirmPush()">✅ Confirmer la publication</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== Fin push modal sandbox ===== -->
+
   </div>
 
   <div id="stats-panel">
@@ -1078,6 +1183,17 @@ let isBrushMode = false;
 let allAnnonces = [];
 let conflictHorizonDays = 30;
 
+let currentSandboxMeta = null;
+let sandboxData = [];
+let sandboxBaseline = [];
+let pendingEditsSandbox = {};
+let isSandboxEditMode   = false;
+let sandboxConflicts = {}; // { sandboxRowId: { colKey: { realValue, baselineValue } } }
+let isSandboxBrushMode = false;
+let pendingPushDiff = []; // [{ sandboxRow, realRow, colKey, sandboxVal, realVal, hasConflict, conflictInfo }]
+
+
+
 async function doLogin() {
   const input  = document.getElementById('auth-login').value.trim();
   const pass   = document.getElementById('auth-pass').value;
@@ -1248,6 +1364,7 @@ if (profile.preferences) {
   if (profile.role === 'admin') {
     document.getElementById('btn-toggle-edit').style.display = 'inline';
     document.body.classList.add('is-admin');
+    document.getElementById('tab-btn-sandbox').style.display = 'inline-block';
   } else {
           // Sécurité : on s'assure que la classe n'est pas là si ce n'est pas un admin
           document.body.classList.remove('is-admin');
@@ -1528,10 +1645,13 @@ function switchTab(tab) {
   document.querySelector(`.tab-${tab}`).classList.add('active');
   document.getElementById('table-wrap').style.display = tab === 'planning' ? 'block' : 'none';
   document.getElementById('abs-wrap').style.display   = tab === 'absences' ? 'block' : 'none';
+  document.getElementById('sandbox-wrap').style.display = tab === 'sandbox' ? 'flex' : 'none';
   document.getElementById('toolbar-planning-extras').style.display = (tab === 'planning' || tab === 'semainier') ? 'flex' : 'none';
   document.getElementById('toolbar-absences-extras').style.display = tab === 'absences' ? 'flex' : 'none';
   document.getElementById('abs-legend').style.display    = tab === 'absences' ? 'flex' : 'none';
   document.getElementById('btn-add-absence').style.display = (tab === 'absences' && currentUser?.role === 'admin') ? 'flex' : 'none';
+  
+  if (tab === 'sandbox') checkSandboxState();
   onFilterChange();
 }
 
@@ -1555,6 +1675,7 @@ async function init() {
   document.getElementById('chk-show-internes').checked = showInternes;
   populateSemainierDocs();
   buildTableHeader();
+  buildTableHeader('sandbox-table-head');
   buildColToggles();
   buildAbsTypeToggles();
   populateAbsModal();
@@ -2358,8 +2479,8 @@ function toggleInternesVisibility() {
   // On met à jour l'affichage des colonnes
   applyColVisibility();
 }
-function buildTableHeader() {
-  const thead = document.getElementById('table-head');
+function buildTableHeader(theadId = 'table-head') {
+  const thead = document.getElementById(theadId);
   thead.innerHTML = '';
   const groupRow = document.createElement('tr');
   let prevGroup = null, span = 0;
@@ -3357,6 +3478,906 @@ const boxTds = BOX_COLS.map(colKey => {
     tbody.appendChild(tr);
   });
 }
+
+
+// --- Fonctions sandbox ---
+
+async function checkSandboxState() {
+  const { data, error } = await _supabase
+    .from('sandbox_meta')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) {
+    toast('Erreur lecture sandbox : ' + error.message, 'error');
+    return;
+  }
+
+  currentSandboxMeta = data || null;
+  renderSandboxState();
+
+  if (currentSandboxMeta) {
+    await loadSandboxData();
+  }
+}
+
+
+function renderSandboxState() {
+  const emptyState  = document.getElementById('sandbox-empty-state');
+  const activeState = document.getElementById('sandbox-active-state');
+
+  if (!currentSandboxMeta) {
+    emptyState.style.display  = 'block';
+    activeState.style.display = 'none';
+  } else {
+    emptyState.style.display  = 'none';
+    activeState.style.display = 'flex';
+
+    const periodEl  = document.getElementById('sandbox-info-period');
+    const creatorEl = document.getElementById('sandbox-info-creator');
+    periodEl.textContent  = `${formatDate(currentSandboxMeta.date_from)} → ${formatDate(currentSandboxMeta.date_to)}`;
+    creatorEl.textContent = `créée par ${currentSandboxMeta.created_by}`;
+  }
+}
+
+async function createSandbox() {
+  const dateFrom = document.getElementById('sandbox-create-from').value;
+  const dateTo   = document.getElementById('sandbox-create-to').value;
+  const note     = document.getElementById('sandbox-create-note').value.trim();
+
+  if (!dateFrom || !dateTo) {
+    toast('Sélectionne une période valide', 'warning');
+    return;
+  }
+  if (dateFrom > dateTo) {
+    toast('La date de début doit précéder la date de fin', 'warning');
+    return;
+  }
+
+  // Sécurité : une sandbox existe déjà ?
+  if (currentSandboxMeta) {
+    toast('Une sandbox existe déjà — supprime-la avant d\'en créer une nouvelle', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('btn-create-sandbox');
+  btn.disabled = true;
+  btn.textContent = '⏳ Copie en cours...';
+
+  try {
+    // 1. Récupérer les lignes du planning réel sur la période
+    const { data: rows, error: fetchError } = await _supabase
+      .from('planning')
+      .select('*')
+      .gte('date', dateFrom)
+      .lte('date', dateTo)
+      .order('date', { ascending: true })
+      .order('heure', { ascending: true });
+
+    if (fetchError) throw fetchError;
+
+    if (!rows || rows.length === 0) {
+      toast('Aucune ligne trouvée sur cette période', 'warning');
+      btn.disabled = false;
+      btn.textContent = '🧪 Créer la sandbox';
+      return;
+    }
+
+    // 2. Préparer les lignes pour insertion dans planning_sandbox
+    //    On retire l'id d'origine pour laisser la séquence sandbox générer
+    //    ses propres ids, mais on garde une trace de l'id source.
+    const sandboxRows = rows.map(row => {
+      const { id, ...rest } = row;
+      return { ...rest, source_id: id };
+    });
+
+    // 3. Insérer dans planning_sandbox
+    const { error: insertError } = await _supabase
+      .from('planning_sandbox')
+      .insert(sandboxRows);
+
+    if (insertError) throw insertError;
+
+    // 3bis. Insérer la même photo dans planning_sandbox_baseline (jamais modifiée ensuite)
+    const { error: baselineError } = await _supabase
+      .from('planning_sandbox_baseline')
+      .insert(sandboxRows);
+
+    if (baselineError) throw baselineError;
+    
+    // 4. Créer la ligne sandbox_meta
+    const { error: metaError } = await _supabase
+      .from('sandbox_meta')
+      .insert({
+        id: 1,
+        date_from: dateFrom,
+        date_to: dateTo,
+        created_by: currentUser.login,
+        note: note || null
+      });
+
+    if (metaError) throw metaError;
+
+    toast(`Sandbox créée ✓ (${rows.length} lignes copiées)`);
+    await checkSandboxState();
+    await loadSandboxData();
+
+  } catch (err) {
+    toast('Erreur création sandbox : ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🧪 Créer la sandbox';
+  }
+}
+
+
+
+async function loadSandboxData() {
+  const { data, error } = await _supabase
+    .from('planning_sandbox')
+    .select('*')
+    .order('date', { ascending: true })
+    .order('heure', { ascending: true });
+
+  if (error) {
+    toast('Erreur chargement sandbox : ' + error.message, 'error');
+    return;
+  }
+
+  sandboxData = data || [];
+
+  const { data: baselineData, error: baselineError } = await _supabase
+    .from('planning_sandbox_baseline')
+    .select('*');
+
+  if (baselineError) {
+    toast('Erreur chargement baseline : ' + baselineError.message, 'error');
+  } else {
+    sandboxBaseline = baselineData || [];
+  }
+
+  renderSandboxTable();
+}
+
+function getBaselineRow(sandboxRow) {
+  return sandboxBaseline.find(b => b.source_id === sandboxRow.source_id);
+}
+
+function toggleSandboxEditMode() {
+  isSandboxEditMode = !isSandboxEditMode;
+  const btn  = document.getElementById('btn-sandbox-edit');
+  const save = document.getElementById('btn-sandbox-save');
+
+  if (isSandboxEditMode) {
+    btn.textContent = "✕ Annuler";
+    btn.classList.replace('btn-ghost', 'btn-danger');
+    save.style.display = 'inline';
+  } else {
+    btn.textContent = "✏️ Modifier";
+    btn.classList.replace('btn-danger', 'btn-ghost');
+    save.style.display = 'none';
+    pendingEditsSandbox = {};
+    toast('Modifications sandbox annulées', 'info');
+    loadSandboxData();
+  }
+  renderSandboxTable();
+}
+
+
+function renderSandboxTable() {
+  const tbody = document.getElementById('sandbox-table-body');
+  const empty = document.getElementById('sandbox-empty-rows');
+  tbody.innerHTML = '';
+
+  if (sandboxData.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const absIdx = buildAbsenceIndex();
+  let lastDate = null;
+
+  sandboxData.forEach(row => {
+    const tr = document.createElement('tr');
+    if (row.date !== lastDate) {
+      tr.classList.add('new-day');
+      lastDate = row.date;
+    }
+    tr.classList.add(row.heure === '9h00' ? 'creno-matin' : 'creno-aprem');
+
+    // Détection conflits cliniques (médecin sur plusieurs colonnes de la ligne)
+    const doctorPos = {};
+    DOCTOR_COLS.forEach(col => {
+      if (CONFLICT_IGNORE_COLS.includes(col)) return;
+      const val = (row[col] || '').trim().toUpperCase();
+      if (val && val.length <= 6) {
+        if (!doctorPos[val]) doctorPos[val] = [];
+        doctorPos[val].push(col);
+      }
+    });
+    const conflicting = Object.entries(doctorPos).filter(([, cs]) => cs.length > 1).map(([d]) => d);
+
+    // Détection conflits non-cliniques (médecin posté alors qu'absent)
+    const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+    const nonCliConflicts = [];
+    DOCTOR_COLS.forEach(col => {
+      const val = (row[col] || '').trim().toUpperCase();
+      if (val && val.length <= 6 && dateAbsences.has(val)) {
+        nonCliConflicts.push({ doctor: val, col, type: dateAbsences.get(val).type });
+      }
+    });
+
+    if (conflicting.length) {
+      tr.classList.add('conflict');
+      tr.title = '⚠️ Conflit clinique : ' + conflicting.join(', ');
+    } else if (nonCliConflicts.length) {
+      tr.classList.add('conflict-noncli');
+      tr.title = '🌴 Conflit non-clinique : ' + nonCliConflicts.map(c => `${c.doctor} (${c.type})`).join(', ');
+    }
+
+COLUMNS.forEach(col => {
+      const td      = document.createElement('td');
+      const val     = row[col.key] || '';
+      const pending = pendingEditsSandbox[row.id]?.[col.key];
+      td.dataset.col = col.key;
+
+      if (col.key === 'date') {
+        td.className = 'col-date';
+        td.textContent = formatDate(val);
+      } else if (col.key === 'heure') {
+        td.className = 'col-heure';
+        td.textContent = val;
+      } else if (col.key === 'ReposGarde') {
+        td.className = 'editable';
+        td.style.color = 'var(--gray)';
+        td.textContent = val;
+} else {
+        td.className = 'editable';
+        td.textContent = pending !== undefined ? pending : val;
+
+        const baselineRow = getBaselineRow(row);
+        const baselineVal = (baselineRow?.[col.key] || '').trim();
+        const currentVal  = (pending !== undefined ? pending : val).trim();
+        const isModifiedInSandbox = currentVal !== baselineVal;
+        const hasRealConflict = sandboxConflicts[row.id]?.[col.key];
+
+        // Couleur de texte : rouge/violet (conflits cliniques) priment, sinon bleu si modifié en sandbox
+        if (conflicting.includes(val.trim().toUpperCase())) {
+          td.style.color = 'var(--red)';
+        } else if (nonCliConflicts.some(c => c.col === col.key)) {
+          td.style.color = 'var(--purple)';
+        } else if (isModifiedInSandbox) {
+          td.style.color = '#60a5fa'; // bleu
+        }
+
+        // Encadré orange : conflit avec le planning réel, indépendant de la couleur du texte
+        if (hasRealConflict) {
+          const isDrift = hasRealConflict.status === 'drift';
+          td.style.outline = `2px solid ${isDrift ? '#fb923c' : '#fb923c'}`; // même couleur, message différent
+          td.style.outlineOffset = '-2px';
+          td.title = isDrift
+            ? `🔶 Le planning réel a changé depuis la création de la sandbox : "${hasRealConflict.realValue || '(vide)'}" (était "${hasRealConflict.baselineValue || '(vide)'}"). Cette case n'a pas été éditée dans la sandbox.`
+            : `⚠️ Conflit : modifié à la fois dans la sandbox et sur le planning réel, avec des valeurs différentes ("${hasRealConflict.realValue || '(vide)'}" sur le réel, était "${hasRealConflict.baselineValue || '(vide)'}").`;
+        }
+
+        if (pending !== undefined) td.style.borderColor = 'var(--amber)';
+
+        if (canEditCol(col.key)) {
+          td.addEventListener('dblclick', () => openSandboxDropdown(td, row, col.key));
+          td.addEventListener('click', () => {
+            if (isSandboxBrushMode && canEditCol(col.key)) applySandboxBrushValue(row, col.key, td);
+          });
+        }
+      }
+
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  applySandboxColVisibility();
+}
+
+
+
+function openSandboxDropdown(td, row, colKey) {
+  const dropdown = document.getElementById('edit-dropdown');
+  const rect = td.getBoundingClientRect();
+  dropdown.innerHTML = '';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'dd-search-input';
+  input.placeholder = 'Saisir ou choisir...';
+  input.value = (td.textContent === '[ Effacer ]') ? '' : td.textContent;
+  dropdown.appendChild(input);
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      confirmSandboxSelection(row, colKey, input.value.trim().toUpperCase(), td);
+    }
+  });
+
+  addDropdownItem(dropdown, '<span style="color:var(--red)">[ Effacer ]</span>', '', () => {
+    confirmSandboxSelection(row, colKey, '', td);
+  });
+
+  // Médecins déjà présents sur la ligne (hors colonne en cours et colonnes exemptées)
+  const alreadyOnRow = new Set();
+  DOCTOR_COLS.forEach(col => {
+    if (col === colKey) return;
+    if (CONFLICT_IGNORE_COLS.includes(col)) return;
+    const val = (row[col] || '').trim().toUpperCase();
+    if (val && val.length <= 6) alreadyOnRow.add(val);
+  });
+
+  const absIdx = buildAbsenceIndex();
+  const dateAbsences = absIdx.get(`${row.date}_${row.heure}`) || new Map();
+
+  const isEditingInterneCol = colKey.endsWith('_int') || colKey.endsWith('_int1') || colKey.endsWith('_int2');
+  const compteurs = {};
+  listeMedecins.forEach(m => compteurs[m.initiales.toUpperCase()] = 0);
+  sandboxData.forEach(r => {
+    DOCTOR_COLS.forEach(c => {
+      const val = (r[c] || '').trim().toUpperCase();
+      if (compteurs.hasOwnProperty(val)) compteurs[val]++;
+    });
+  });
+
+  const renderSuggestions = (filterText = "") => {
+    Array.from(dropdown.querySelectorAll('.dd-item:not(:first-of-type)')).forEach(el => el.remove());
+
+    const filteredMedecins = listeMedecins.filter(med => {
+      const medIsInterne = (med.fonction === 'interne');
+      return isEditingInterneCol ? medIsInterne : !medIsInterne;
+    }).filter(med => !alreadyOnRow.has(med.initiales.toUpperCase()));
+
+    const sortedMedecins = filteredMedecins.sort((a, b) =>
+      (compteurs[a.initiales.toUpperCase()] || 0) - (compteurs[b.initiales.toUpperCase()] || 0)
+    );
+
+    sortedMedecins.forEach(med => {
+      const init = med.initiales.toUpperCase();
+      if (filterText && !init.includes(filterText.toUpperCase())) return;
+
+      const isAbsent = dateAbsences.has(init);
+      const labelAbs = isAbsent ? ` <span style="color:var(--purple); font-size:9px;">(${dateAbsences.get(init).type})</span>` : '';
+      const colorStyle = med.fonction === 'interne' ? 'color:var(--purple);' : 'color:var(--white);';
+
+      addDropdownItem(dropdown,
+        `<span style="${colorStyle}">${init}${labelAbs}</span><span class="dd-count">${compteurs[init] || 0}</span>`,
+        init,
+        () => confirmSandboxSelection(row, colKey, init, td)
+      );
+    });
+  };
+
+  input.addEventListener('input', () => renderSuggestions(input.value));
+  renderSuggestions();
+  showDropdown(dropdown, rect);
+  setTimeout(() => input.focus(), 50);
+}
+
+
+async function compareSandboxWithReal() {
+  const btn = document.getElementById('btn-compare-sandbox');
+  btn.disabled = true;
+  btn.textContent = '⏳ Comparaison...';
+
+  try {
+    const sourceIds = sandboxData.map(r => r.source_id).filter(id => id != null);
+    if (sourceIds.length === 0) {
+      toast('Aucune ligne source à comparer', 'warning');
+      return;
+    }
+
+    const { data: realRows, error } = await _supabase
+      .from('planning')
+      .select('*')
+      .in('id', sourceIds);
+
+    if (error) throw error;
+
+    const realById = {};
+    realRows.forEach(r => { realById[r.id] = r; });
+
+    sandboxConflicts = {}; // garde les 'conflict' ET les 'drift', avec un champ status
+    let conflictCount = 0;
+    let driftCount = 0;
+
+    sandboxData.forEach(sbRow => {
+      const realRow = realById[sbRow.source_id];
+      if (!realRow) return;
+
+      const baselineRow = getBaselineRow(sbRow);
+      if (!baselineRow) return;
+
+      COLUMNS.forEach(col => {
+        if (col.group === 'meta') return;
+
+        const pending = pendingEditsSandbox[sbRow.id]?.[col.key];
+        const sandboxVal  = ((pending !== undefined ? pending : sbRow[col.key]) || '').trim();
+        const baselineVal = (baselineRow[col.key] || '').trim();
+        const realVal     = (realRow[col.key] || '').trim();
+
+        const realDrifted     = realVal !== baselineVal;
+        const sandboxModified = sandboxVal !== baselineVal;
+
+        if (realDrifted && sandboxModified && sandboxVal !== realVal) {
+          if (!sandboxConflicts[sbRow.id]) sandboxConflicts[sbRow.id] = {};
+          sandboxConflicts[sbRow.id][col.key] = {
+            status: 'conflict',
+            realValue: realVal,
+            baselineValue: baselineVal
+          };
+          conflictCount++;
+        } else if (realDrifted && !sandboxModified) {
+          if (!sandboxConflicts[sbRow.id]) sandboxConflicts[sbRow.id] = {};
+          sandboxConflicts[sbRow.id][col.key] = {
+            status: 'drift',
+            realValue: realVal,
+            baselineValue: baselineVal
+          };
+          driftCount++;
+        }
+      });
+    });
+
+    renderSandboxTable();
+
+    if (conflictCount > 0 || driftCount > 0) {
+      toast(`⚠️ ${conflictCount} conflit(s), 🔶 ${driftCount} changement(s) tiers détecté(s)`, 'warning');
+    } else {
+      toast('✓ Aucun écart — la sandbox est synchronisée');
+    }
+
+  } catch (err) {
+    toast('Erreur comparaison : ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 Comparer avec le planning réel';
+  }
+}
+
+function confirmSandboxSelection(row, colKey, value, td) {
+  if (!pendingEditsSandbox[row.id]) pendingEditsSandbox[row.id] = {};
+  pendingEditsSandbox[row.id][colKey] = value;
+  td.textContent = value;
+  td.style.borderColor = 'var(--amber)';
+
+  const idx = sandboxData.findIndex(r => r.id === row.id);
+  if (idx !== -1) sandboxData[idx][colKey] = value;
+
+  closeDropdown();
+}
+
+async function saveSandboxPending() {
+  const btn = document.getElementById('btn-save-sandbox');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sauvegarde...';
+
+  try {
+    for (const rowId in pendingEditsSandbox) {
+      const updates = pendingEditsSandbox[rowId];
+      const { error } = await _supabase.from('planning_sandbox').update(updates).eq('id', rowId);
+      if (error) throw error;
+    }
+    pendingEditsSandbox = {};
+    toast('Sandbox sauvegardée ✓');
+    await loadSandboxData();
+  } catch (err) {
+    toast('Erreur sauvegarde sandbox : ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '💾 Sauvegarder';
+  }
+}
+
+
+function applySandboxColVisibility() {
+  COLUMNS.forEach(col => {
+    if (col.group === 'meta') return;
+    const isInterneCol = col.key.endsWith('_int') || col.key.endsWith('_int1') || col.key.endsWith('_int2');
+    const shouldShow = visibleCols[col.key] && (!isInterneCol || showInternes);
+    const displayStyle = shouldShow ? '' : 'none';
+    document.querySelectorAll(`#sandbox-table [data-col="${col.key}"]`).forEach(cell => {
+      cell.style.display = displayStyle;
+    });
+  });
+
+  Object.keys(groupMap).forEach(group => {
+    const visibleCount = groupMap[group].filter(key => {
+      const isInterneCol = key.endsWith('_int') || key.endsWith('_int1') || key.endsWith('_int2');
+      return visibleCols[key] && (!isInterneCol || showInternes);
+    }).length;
+
+    const th = document.querySelector(`#sandbox-table-head .col-group[data-group="${group}"]`);
+    if (th) {
+      th.style.display = visibleCount > 0 ? '' : 'none';
+      if (visibleCount > 0) th.colSpan = visibleCount;
+    }
+  });
+}
+
+
+
+function applySandboxBrushValue(row, colKey, td) {
+  let val = document.getElementById('brush-value').value.trim();
+  const finalValue = (val.toLowerCase() === 'vide' || val === '') ? null : val.toUpperCase();
+
+  if (!pendingEditsSandbox[row.id]) pendingEditsSandbox[row.id] = {};
+  pendingEditsSandbox[row.id][colKey] = finalValue;
+  td.textContent = finalValue || '';
+  td.style.borderColor = 'var(--amber)';
+
+  const idx = sandboxData.findIndex(r => r.id === row.id);
+  if (idx !== -1) sandboxData[idx][colKey] = finalValue;
+}
+
+
+function openPushModal() {
+  if (!currentSandboxMeta) return;
+
+  document.getElementById('push-date-from').value = currentSandboxMeta.date_from;
+  document.getElementById('push-date-to').value   = currentSandboxMeta.date_to;
+
+  const grid = document.getElementById('push-group-grid');
+  grid.innerHTML = '';
+  Object.keys(groupMap).forEach(group => {
+    const chip = document.createElement('label');
+    chip.className = 'settings-group-chip active';
+    chip.style.color       = GROUP_COLORS[group] || 'var(--white)';
+    chip.style.borderColor = GROUP_COLORS[group] || 'var(--border)';
+    chip.dataset.group = group;
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.addEventListener('change', () => chip.classList.toggle('active', cb.checked));
+
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+
+    chip.appendChild(cb);
+    chip.appendChild(dot);
+    chip.appendChild(document.createTextNode(GROUP_LABELS[group] || group));
+    grid.appendChild(chip);
+  });
+
+  document.getElementById('push-step-select').style.display  = 'block';
+  document.getElementById('push-step-preview').style.display = 'none';
+  document.getElementById('push-modal').style.display = 'flex';
+}
+
+function closePushModal() {
+  document.getElementById('push-modal').style.display = 'none';
+}
+
+function backToPushSelect() {
+  document.getElementById('push-step-select').style.display  = 'block';
+  document.getElementById('push-step-preview').style.display = 'none';
+}
+
+
+async function prepareDiffPreview() {
+  const dateFrom = document.getElementById('push-date-from').value;
+  const dateTo   = document.getElementById('push-date-to').value;
+
+  const selectedGroups = [];
+  document.querySelectorAll('#push-group-grid .settings-group-chip input').forEach(cb => {
+    const group = cb.closest('label').dataset.group;
+    if (cb.checked && group) selectedGroups.push(group);
+  });
+
+  if (!dateFrom || !dateTo) {
+    toast('Sélectionne une période valide', 'warning');
+    return;
+  }
+  if (selectedGroups.length === 0) {
+    toast('Sélectionne au moins un groupe de colonnes', 'warning');
+    return;
+  }
+
+  // Comparaison fraîche (remplit sandboxConflicts à jour)
+  await compareSandboxWithReal();
+
+  const selectedCols = COLUMNS
+    .filter(c => selectedGroups.includes(c.group))
+    .map(c => c.key);
+
+  const rowsInPeriod = sandboxData.filter(r => r.date >= dateFrom && r.date <= dateTo);
+  const sourceIds = rowsInPeriod.map(r => r.source_id).filter(id => id != null);
+
+  if (sourceIds.length === 0) {
+    toast('Aucune ligne dans cette période', 'warning');
+    return;
+  }
+
+  const { data: realRows, error } = await _supabase
+    .from('planning')
+    .select('*')
+    .in('id', sourceIds);
+
+  if (error) {
+    toast('Erreur lecture planning réel : ' + error.message, 'error');
+    return;
+  }
+
+  const realById = {};
+  realRows.forEach(r => { realById[r.id] = r; });
+
+  pendingPushDiff = [];
+
+  rowsInPeriod.forEach(sbRow => {
+    const realRow = realById[sbRow.source_id];
+    if (!realRow) return;
+
+    const baselineRow = getBaselineRow(sbRow);
+
+    selectedCols.forEach(colKey => {
+      const pending = pendingEditsSandbox[sbRow.id]?.[colKey];
+      const sandboxVal  = ((pending !== undefined ? pending : sbRow[colKey]) || '').trim();
+      const realVal     = (realRow[colKey] || '').trim();
+      const baselineVal = (baselineRow?.[colKey] || '').trim();
+
+      // Rien à publier si la valeur sandbox finale == valeur réelle actuelle
+      if (sandboxVal === realVal) return;
+
+      const conflictEntry = sandboxConflicts[sbRow.id]?.[colKey] || null;
+      const status = conflictEntry ? conflictEntry.status : 'clean';
+
+      pendingPushDiff.push({
+        sandboxRowId: sbRow.id,
+        sourceId: sbRow.source_id,
+        date: sbRow.date,
+        heure: sbRow.heure,
+        colKey,
+        colLabel: COLUMNS.find(c => c.key === colKey)?.label || colKey,
+        sandboxVal,
+        realVal,
+        baselineVal,
+        status,
+        selected: status === 'clean'
+      });
+    });
+  });
+
+  renderDiffPreview();
+}
+function renderDiffPreview() {
+  document.getElementById('push-step-select').style.display  = 'none';
+  document.getElementById('push-step-preview').style.display = 'flex';
+
+  const summary    = document.getElementById('push-summary');
+  const warning     = document.getElementById('push-conflict-warning');
+  const list        = document.getElementById('push-diff-list');
+  const confirmBtn  = document.getElementById('btn-confirm-push');
+
+  list.innerHTML = '';
+
+  if (pendingPushDiff.length === 0) {
+    summary.textContent = 'Aucune différence détectée — rien à publier sur cette sélection.';
+    warning.style.display = 'none';
+    confirmBtn.disabled = true;
+    return;
+  }
+
+  const conflicts = pendingPushDiff.filter(d => d.status === 'conflict');
+  const drifts    = pendingPushDiff.filter(d => d.status === 'drift');
+  const clean     = pendingPushDiff.filter(d => d.status === 'clean');
+
+  updatePushSummary();
+
+  if (conflicts.length > 0 || drifts.length > 0) {
+    warning.style.display = 'block';
+    warning.innerHTML = `
+      ${conflicts.length > 0 ? `⚠️ <b>${conflicts.length} conflit(s)</b> : modifiés à la fois dans la sandbox et sur le planning réel, avec des valeurs différentes.<br>` : ''}
+      ${drifts.length > 0 ? `🔶 <b>${drifts.length} changement(s) tiers</b> : le planning réel a été modifié par quelqu'un d'autre depuis la création de la sandbox, sur une case que tu n'as pas éditée. Publier l'écraserait.<br>` : ''}
+      Coche manuellement chaque cellule que tu souhaites réellement publier.
+    `;
+  } else {
+    warning.style.display = 'none';
+  }
+
+  const statusOrder = { conflict: 0, drift: 1, clean: 2 };
+  const sorted = [...pendingPushDiff].sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+
+  const statusStyles = {
+    conflict: { border: 'var(--red)',   bg: 'var(--red-dim)',    icon: '⚠️' },
+    drift:    { border: '#fb923c',      bg: '#fb923c20',         icon: '🔶' },
+    clean:    { border: 'var(--teal)',  bg: 'var(--navy)',       icon: '' }
+  };
+
+  sorted.forEach((d, idx) => {
+    const style = statusStyles[d.status];
+    const item = document.createElement('div');
+    item.style.cssText = `
+      display:flex; align-items:center; gap:10px; padding:8px 12px;
+      border-radius:6px; border-left:3px solid ${style.border};
+      background:${style.bg};
+      font-family:'DM Mono',monospace; font-size:11px;
+    `;
+
+    const dateStr = new Date(d.date + 'T00:00:00').toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+let valueHtml;
+    if (d.status === 'clean') {
+      valueHtml = `
+        <span style="color:var(--gray)">${d.realVal || '(vide)'}</span>
+        <span style="color:var(--gray)"> → </span>
+        <span style="color:var(--teal)">${d.sandboxVal || '(vide)'}</span>
+      `;
+    } else {
+      // baseline (barré) → réel actuel → valeur qui sera réellement écrite si coché
+      valueHtml = `
+        <span style="color:var(--gray); text-decoration:line-through;">${d.baselineVal || '(vide)'}</span>
+        <span style="color:var(--gray)"> → </span>
+        <span style="color:${d.status === 'conflict' ? 'var(--red)' : '#fb923c'}; font-weight:600;">${d.realVal || '(vide)'}</span>
+        <span style="color:var(--gray)"> (réel) </span>
+        <span style="color:var(--gray)"> → </span>
+        <span style="color:var(--teal); font-weight:600;">${d.sandboxVal || '(vide)'}</span>
+        <span style="color:var(--gray)"> (si publié)</span>
+      `;
+    }
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = d.selected;
+    checkbox.style.cssText = 'width:16px; height:16px; cursor:pointer; flex-shrink:0;';
+    checkbox.addEventListener('change', () => {
+      d.selected = checkbox.checked;
+      updatePushSummary();
+    });
+
+    item.appendChild(checkbox);
+
+    const content = document.createElement('div');
+    content.style.cssText = 'flex:1; display:flex; align-items:center; gap:10px;';
+    content.innerHTML = `
+      <span style="color:var(--white); min-width:140px;">${dateStr} ${d.heure}</span>
+      <span style="color:var(--amber); min-width:70px;">${d.colLabel}</span>
+      <span style="flex:1;">${valueHtml}</span>
+      ${style.icon ? `<span>${style.icon}</span>` : ''}
+    `;
+    item.appendChild(content);
+
+    list.appendChild(item);
+  });
+}
+
+function updatePushSummary() {
+  const summary   = document.getElementById('push-summary');
+  const confirmBtn = document.getElementById('btn-confirm-push');
+  const selectedCount = pendingPushDiff.filter(d => d.selected).length;
+  summary.textContent = `${selectedCount} / ${pendingPushDiff.length} cellule(s) sélectionnée(s) pour publication.`;
+  confirmBtn.disabled = selectedCount === 0;
+}
+
+
+async function confirmPush() {
+  const toPush = pendingPushDiff.filter(d => d.selected);
+
+  if (toPush.length === 0) {
+    toast('Aucune cellule sélectionnée', 'warning');
+    return;
+  }
+
+  const finalConfirm = confirm(
+    `Publier ${toPush.length} modification(s) vers le planning réel ?\n\nCette action est irréversible.`
+  );
+  if (!finalConfirm) return;
+
+  const btn = document.getElementById('btn-confirm-push');
+  btn.disabled = true;
+  btn.textContent = '⏳ Publication...';
+
+  try {
+    const byRow = {};
+    toPush.forEach(d => {
+      if (!byRow[d.sourceId]) byRow[d.sourceId] = {};
+      byRow[d.sourceId][d.colKey] = d.sandboxVal;
+    });
+
+    for (const sourceId in byRow) {
+      const updates = byRow[sourceId];
+      const { error } = await _supabase.from('planning').update(updates).eq('id', sourceId);
+      if (error) throw error;
+    }
+
+    const historyEntries = toPush.map(d => ({
+      modified_by : currentUser.login,
+      row_date    : d.date,
+      row_heure   : d.heure,
+      col_key     : d.colKey,
+      old_value   : d.realVal,
+      new_value   : d.sandboxVal
+    }));
+
+    const { error: historyError } = await _supabase
+      .from('planning_history')
+      .insert(historyEntries);
+
+    if (historyError) console.warn('Historique non enregistré :', historyError.message);
+
+    const sandboxRowsById = {};
+    sandboxData.forEach(r => { sandboxRowsById[r.id] = r; });
+
+    for (const d of toPush) {
+      const sbRow = sandboxRowsById[d.sandboxRowId];
+      if (!sbRow) continue;
+      const baselineRow = getBaselineRow(sbRow);
+      if (!baselineRow) continue;
+
+      await _supabase
+        .from('planning_sandbox_baseline')
+        .update({ [d.colKey]: d.sandboxVal })
+        .eq('id', baselineRow.id);
+    }
+
+    toast(`✓ ${toPush.length} modification(s) publiée(s) avec succès`);
+    closePushModal();
+    pendingPushDiff = [];
+
+    await loadData();
+    await loadSandboxData();
+
+  } catch (err) {
+    toast('Erreur publication : ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✅ Confirmer la publication';
+  }
+}
+async function deleteSandbox() {
+  if (!currentSandboxMeta) return;
+
+  const confirmDelete = confirm(
+    `Supprimer la sandbox active (${formatDate(currentSandboxMeta.date_from)} → ${formatDate(currentSandboxMeta.date_to)}) ?\n\nToutes les modifications non publiées seront perdues définitivement.`
+  );
+  if (!confirmDelete) return;
+
+  try {
+    // 1. Vider planning_sandbox
+    const { error: errSandbox } = await _supabase
+      .from('planning_sandbox')
+      .delete()
+      .gte('id', 0); // delete all rows (id is always >= 0)
+
+    if (errSandbox) throw errSandbox;
+
+    // 2. Vider planning_sandbox_baseline
+    const { error: errBaseline } = await _supabase
+      .from('planning_sandbox_baseline')
+      .delete()
+      .gte('id', 0);
+
+    if (errBaseline) throw errBaseline;
+
+    // 3. Supprimer la ligne sandbox_meta
+    const { error: errMeta } = await _supabase
+      .from('sandbox_meta')
+      .delete()
+      .eq('id', 1);
+
+    if (errMeta) throw errMeta;
+
+    // 4. Reset de l'état local
+    currentSandboxMeta = null;
+    sandboxData = [];
+    sandboxBaseline = [];
+    sandboxConflicts = {};
+    pendingEditsSandbox = {};
+
+    toast('Sandbox supprimée ✓');
+    renderSandboxState();
+
+  } catch (err) {
+    toast('Erreur suppression sandbox : ' + err.message, 'error');
+  }
+}
 // ══════════════════════════════════════════════════════════════════
 
 
@@ -3622,6 +4643,8 @@ async function setNewPassword() {
   toast('Mot de passe enregistré ✓');
   await applySession(window._pendingSession);
 }
+
+
 function printPlanning() {
   const dateFrom = document.getElementById('filter-date-from').value;
   const dateTo   = document.getElementById('filter-date-to').value;
@@ -3825,7 +4848,7 @@ function printPlanning() {
   </div>
 
   <div class="page-footer">
-    <span>Planning Neurologie v1.10 · Impression automatique</span>
+    <span>Planning Neurologie v1.20 · Impression automatique</span>
     <span>${fmt(dateFrom)} – ${fmt(dateTo)}</span>
   </div>
 
