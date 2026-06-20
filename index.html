@@ -569,7 +569,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
   <button class="tab-btn tab-planning active" onclick="switchTab('planning')">🏥 Planning clinique</button>
   <button class="tab-btn tab-absences"        onclick="switchTab('absences')">🌴 Absences / Non clinique</button>
   <button class="tab-btn tab-semainier"         onclick="switchTab('semainier')">📅 Semainier </button>
-  <button class="tab-btn tab-secretariat"       onclick="switchTab('secretariat')">📋 Gestion Cs</button>
+  <button class="tab-btn tab-secretariat" id="tab-btn-secretariat"      onclick="switchTab('secretariat')" style="display:none; color:var(--purple)">📋 Gestion Cs</button>
   <button class="tab-btn tab-sandbox" id="tab-btn-sandbox" onclick="switchTab('sandbox')" style="display:none; color:var(--purple)">🧪 Sandbox</button>
 </div>
 
@@ -1364,6 +1364,7 @@ if (profile.preferences) {
   if (profile.role === 'admin') {
     document.getElementById('btn-toggle-edit').style.display = 'inline';
     document.body.classList.add('is-admin');
+    document.getElementById('tab-btn-secretariat').style.display = 'inline-block';
     document.getElementById('tab-btn-sandbox').style.display = 'inline-block';
   } else {
           // Sécurité : on s'assure que la classe n'est pas là si ce n'est pas un admin
