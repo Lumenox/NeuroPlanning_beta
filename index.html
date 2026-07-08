@@ -3794,13 +3794,12 @@ COLUMNS.forEach(col => {
 
         if (pending !== undefined) td.style.borderColor = 'var(--amber)';
 
-        if (canEditCol(col.key)) {
+if (canEditCol(col.key)) {
           td.addEventListener('dblclick', () => openSandboxDropdown(td, row, col.key));
-          td.addEventListener('click', () => {
-            if (isSandboxBrushMode && canEditCol(col.key)) applySandboxBrushValue(row, col.key, td);
+          td.addEventListener('click', (e) => {
+            if (isSandboxBrushMode || e.altKey) applySandboxBrushValue(row, col.key, td);
           });
         }
-      }
 
       tr.appendChild(td);
     });
