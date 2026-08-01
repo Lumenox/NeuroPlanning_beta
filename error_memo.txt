@@ -1,0 +1,84 @@
+30/07
+bug pas clair il y a un problème que je n'arrive pas à identifier. deux collègues A et B ont travaillé sur le planning (pas sur la sandbox), elles ont enregistré de nombreuses modifications jusqu'à environ 15h30, puis B s'est connecté sur sa propre session pour travailler en parallèle à partir d'envrion 15h30. je vois sur les log de planning_history qu'à partir de là seule B enregistre des modifications alors que A a aussi travaillé et sauvegardé. (A me dit que lorsqu'elle sauvagarde, elle n'a pas remarqué de problème). finalement les dernieres entrées sur planning_history sont datées à 15h45 alors qu'elles me disent avoir bossé jusqu'à 18h. 
+
+BUGS IDENTIFIÉS — App Planning Neurologie
+==========================================
+
+1. saveAllPending() et confirmPush() appellent une fonction 
+   inexistante `Data()` / `SandboxData()` → ReferenceError capturé 
+   silencieusement (catch sans console.error) → toast d'erreur 
+   trompeur affiché APRÈS que les écritures aient déjà réussi.
+   → Sans conséquence sur les données, mais génère un faux signal 
+     d'échec.
+
+2. planning_history n'est alimenté QUE via confirmPlanningSelection 
+   (sélection dans le dropdown). Le Mode Pinceau (applyBrushValue) 
+   et les éditions d'absences (pendingEditsAbs) n'écrivent JAMAIS 
+   dans l'historique, alors que les données sont bien sauvegardées.
+   → planning_history n'est pas un journal fiable de toutes les 
+     modifications.
+
+3. .update(...).eq('id', rowId) sans .select() : si une policy RLS 
+   bloque la ligne (ou si l'id n'existe plus), Supabase renvoie un 
+   succès HTTP (204) avec 0 ligne modifiée, sans `error`. Le code 
+   actuel ne peut PAS distinguer ce cas d'une vraie sauvegarde.
+   → Explication la plus probable de l'incident où A et B pensaient 
+     avoir sauvegardé sans que rien ne soit écrit après 15h45, sans 
+     aucune erreur visible ni trace exploitable a posteriori.
+
+
+CORRECTIFS À FAIRE (dans cet ordre)
+=====================================
+
+□ 1. Corriger les appels cassés
+     - saveAllPending() : await Data(); 
+       → await loadData(); await loadAbsences();
+     - confirmPush() : await Data(); await SandboxData();
+       → await loadData(); await loadSandboxData();
+     Test : faire une sauvegarde, vérifier qu'aucun toast d'erreur 
+     n'apparaît et que le F12 est propre.
+
+□ 2. Créer une fonction générique de sauvegarde vérifiée
+     - Ajoute .select() à CHAQUE .update() (planning, absences, 
+       planning_sandbox, et le update dans confirmPush)
+     - Vérifie data.length après chaque update :
+         si 0 → considérer comme échec, garder la trace de la ligne 
+         concernée (rowId + colonnes visées)
+     - Factorise ça dans une seule fonction réutilisable, appelée 
+       depuis saveAllPending(), saveSandboxPending(), confirmPush()
+     Test : simuler un cas où une ligne ne peut pas être modifiée 
+     (ex: modifier temporairement une policy RLS, ou update sur un 
+     id inexistant) et vérifier que l'app le signale clairement.
+
+□ 3. Toast de sauvegarde honnête
+     - Si tout est passé : "✓ X modification(s) sauvegardée(s)"
+     - Si une partie a échoué : toast ROUGE explicite listant/
+       comptant les lignes non sauvegardées, PAS un simple compteur 
+       discret noyé dans un toast de succès
+     Test : reprendre le scénario du point 2, vérifier que le toast 
+     d'échec est immédiatement visible et sans ambiguïté.
+
+□ 4. Recharger depuis Supabase après sauvegarde (pas juste vider 
+     pendingEdits localement)
+     - Après un save réussi (ou partiellement réussi), appeler la 
+       vraie fonction de rechargement (loadData/loadAbsences/
+       loadSandboxData selon l'onglet) pour que l'affichage reflète 
+       l'état réel en base, pas l'état optimiste local
+     - Ce même mécanisme doit resservir pour planning, absences, 
+       secretariat (vue sur planning, même flux de sauvegarde) et 
+       sandbox
+     Test : après save, vérifier que ce qui s'affiche correspond 
+     bien à ce qui est réellement en base (comparer avec un refresh 
+     manuel de page).
+
+□ 5. Centraliser l'écriture de planning_history dans la fonction 
+     de sauvegarde (point 2), en comparant ancienne/nouvelle valeur 
+     pour chaque édition réellement confirmée en base — retirer 
+     l'insert historique actuellement fait dans 
+     confirmPlanningSelection() pour éviter les doublons
+     Test : faire une édition au pinceau + sauvegarder, vérifier 
+     qu'une ligne apparaît bien dans planning_history.
+
+□ 6. (Plus tard, moins urgent) Verrouillage optimiste sur l'édition 
+     concurrente d'une même cellule par deux utilisateurs — 
+     indépendant du reste, à traiter séparément
