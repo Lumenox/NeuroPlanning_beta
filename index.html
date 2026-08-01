@@ -1165,6 +1165,7 @@ let absencesData        = [];
 let currentFilteredRows = [];
 let currentFilteredAbs  = [];
 let pendingEdits        = {};
+let editModeSnapshot    = {};  //permet d'éviter que confirmPlanningSelection, en supprimant directement l'ancienne valeur, on ait plus la possibilité de comparer si la nouvelle valeur est bien entrée...
 let   pendingEditsAbs             =  {};
 let isEditMode          = false;
 let realtimeSub         = null;
@@ -2902,6 +2903,8 @@ function toggleEditMode() {
   if (isEditMode) {
     // Passage en mode édition
     btn.textContent = "✕ Annuler";
+    editModeSnapshot = {};// Capture de l'état AVANT édition, pour l'historique
+    allData.forEach(r => { editModeSnapshot[r.id] = { ...r }; });
     btn.classList.replace('btn-ghost', 'btn-danger');
     save.style.display = 'inline';
     brushCont.style.display = 'flex';
@@ -4441,7 +4444,6 @@ function showDropdown(dropdown, rect) {
 }
 
 function confirmPlanningSelection(row, colKey, value, td) {
-  const oldVal = (allData.find(r => r.id === row.id)?.[colKey] || '').trim();
 
   if (!pendingEdits[row.id]) pendingEdits[row.id] = {};
   pendingEdits[row.id][colKey] = value;
@@ -4452,19 +4454,6 @@ function confirmPlanningSelection(row, colKey, value, td) {
   closeDropdown();
   buildStats();
 
-  // Enregistrement dans l'historique si la valeur a changé
-  if (value !== oldVal) {
-    _supabase.from('planning_history').insert({
-      modified_by : currentUser.login,
-      row_date    : row.date,
-      row_heure   : row.heure,
-      col_key     : colKey,
-      old_value   : oldVal,
-      new_value   : value
-    }).then(({ error }) => {
-      if (error) console.warn('Historique non enregistré :', error.message);
-    });
-  }
   // Charger silencieusement la valeur dans le pinceau
   const brushInput = document.getElementById('brush-value');
   if (brushInput && value) brushInput.value = value;
@@ -4510,6 +4499,30 @@ async function saveAllPending() {
       const updates = pendingEdits[rowId];
       const { error } = await _supabase.from('planning').update(updates).eq('id', rowId);
       if (error) throw error;
+    }
+	    // 1bis. Historisation centralisée (couvre dropdown ET pinceau)
+    const historyEntries = [];
+    for (const rowId in pendingEdits) {
+      const updates  = pendingEdits[rowId];
+      const original = editModeSnapshot[rowId] || {};
+      for (const colKey in updates) {
+        const newVal = (updates[colKey] || '').toString().trim();
+        const oldVal = (original[colKey] || '').toString().trim();
+        if (newVal !== oldVal) {
+          historyEntries.push({
+            modified_by : currentUser.login,
+            row_date    : original.date,
+            row_heure   : original.heure,
+            col_key     : colKey,
+            old_value   : oldVal,
+            new_value   : newVal
+          });
+        }
+      }
+    }
+    if (historyEntries.length > 0) {
+      const { error: histError } = await _supabase.from('planning_history').insert(historyEntries);
+      if (histError) console.warn('Historique non enregistré :', histError.message);
     }
     // 2. Sauvegarde Absences
     for (const rowId in pendingEditsAbs) {
