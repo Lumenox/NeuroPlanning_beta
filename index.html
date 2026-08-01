@@ -541,7 +541,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
       </div>
     </div>
     <button id="btn-toggle-edit" class="btn-ghost" style="display:none" onclick="toggleEditMode()">✏️ Modifier</button>
-    <button id="btn-save-all"    class="btn-save"  style="display:none" onclick="saveAllPending()">💾 Sauvegarder</button>
+    <button id="btn-save-all"    class="btn-save"  style="display:none" onclick="()">💾 Sauvegarder</button>
     <div class="sep"></div>
 <button class="btn-ghost" onclick="refreshAll()">↺</button>
 <button class="btn-ghost" onclick="printPlanning()" title="Imprimer le planning" 
@@ -3992,13 +3992,16 @@ async function saveSandboxPending() {
   btn.textContent = '⏳ Sauvegarde...';
 
   try {
-    for (const rowId in pendingEditsSandbox) {
-      const updates = pendingEditsSandbox[rowId];
-      const { error } = await _supabase.from('planning_sandbox').update(updates).eq('id', rowId);
-      if (error) throw error;
-    }
+const sandboxResult = await applyPendingUpdates('planning_sandbox', pendingEditsSandbox);
     pendingEditsSandbox = {};
-    toast('Sandbox sauvegardée ✓');
+
+    if (sandboxResult.failedIds.length === 0) {
+      toast(`✓ ${sandboxResult.successIds.length} modification(s) sandbox sauvegardée(s)`);
+    } else {
+      console.warn('Échecs sandbox :', sandboxResult.failedDetails);
+      toast(`⚠️ ${sandboxResult.failedIds.length} modification(s) sandbox NON sauvegardée(s)`, 'error');
+    }
+
     await loadSandboxData();
   } catch (err) {
     toast('Erreur sauvegarde sandbox : ' + err.message, 'error');
@@ -4307,19 +4310,21 @@ async function confirmPush() {
   btn.textContent = '⏳ Publication...';
 
   try {
-    const byRow = {};
+const byRow = {};
     toPush.forEach(d => {
       if (!byRow[d.sourceId]) byRow[d.sourceId] = {};
       byRow[d.sourceId][d.colKey] = d.sandboxVal;
     });
 
-    for (const sourceId in byRow) {
-      const updates = byRow[sourceId];
-      const { error } = await _supabase.from('planning').update(updates).eq('id', sourceId);
-      if (error) throw error;
+    const pushResult = await applyPendingUpdates('planning', byRow);
+    if (pushResult.failedIds.length > 0) {
+      console.warn('Échecs publication :', pushResult.failedDetails);
+      toast(`⚠️ ${pushResult.failedIds.length} ligne(s) NON publiée(s) — vérifiez vos droits`, 'error');
     }
 
-    const historyEntries = toPush.map(d => ({
+    const historyEntries = toPush
+      .filter(d => pushResult.successIds.includes(String(d.sourceId)))
+      .map(d => ({
       modified_by : currentUser.login,
       row_date    : d.date,
       row_heure   : d.heure,
@@ -4487,22 +4492,45 @@ function closeDropdown() {
   document.getElementById('edit-dropdown').style.display = 'none';
 }
 
+async function applyPendingUpdates(tableName, pendingEditsObj) {
+  const result = { successIds: [], failedIds: [], failedDetails: [] };
+
+  for (const rowId in pendingEditsObj) {
+    const updates = pendingEditsObj[rowId];
+    const { data, error } = await _supabase
+      .from(tableName)
+      .update(updates)
+      .eq('id', rowId)
+      .select();
+
+    if (error) {
+      result.failedIds.push(rowId);
+      result.failedDetails.push({ rowId, reason: error.message });
+    } else if (!data || data.length === 0) {
+      result.failedIds.push(rowId);
+      result.failedDetails.push({ rowId, reason: 'Aucune ligne modifiée (droits insuffisants ou ligne introuvable)' });
+    } else {
+      result.successIds.push(rowId);
+    }
+  }
+
+  return result;
+}
 async function saveAllPending() {
-  // Désactiver le bouton pendant l'envoi
   const saveBtn = document.getElementById('btn-save-all');
   saveBtn.disabled = true;
   saveBtn.textContent = "⏳ Sauvegarde...";
 
   try {
-    // 1. Sauvegarde Planning Clinique
-    for (const rowId in pendingEdits) {
-      const updates = pendingEdits[rowId];
-      const { error } = await _supabase.from('planning').update(updates).eq('id', rowId);
-      if (error) throw error;
-    }
-	    // 1bis. Historisation centralisée (couvre dropdown ET pinceau)
+    // 1. Sauvegarde Planning Clinique (avec vérification)
+    const planningResult = await applyPendingUpdates('planning', pendingEdits);
+
+    // 2. Sauvegarde Absences (avec vérification)
+    const absencesResult = await applyPendingUpdates('absences', pendingEditsAbs);
+
+    // 3. Historisation — uniquement pour les lignes réellement sauvegardées
     const historyEntries = [];
-    for (const rowId in pendingEdits) {
+    planningResult.successIds.forEach(rowId => {
       const updates  = pendingEdits[rowId];
       const original = editModeSnapshot[rowId] || {};
       for (const colKey in updates) {
@@ -4519,22 +4547,26 @@ async function saveAllPending() {
           });
         }
       }
-    }
+    });
     if (historyEntries.length > 0) {
       const { error: histError } = await _supabase.from('planning_history').insert(historyEntries);
       if (histError) console.warn('Historique non enregistré :', histError.message);
     }
-    // 2. Sauvegarde Absences
-    for (const rowId in pendingEditsAbs) {
-                 const updatesAbs = pendingEditsAbs[rowId];
-                 const { error } = await _supabase.from('absences').update(updatesAbs).eq('id', rowId);
-                 if (error) throw error;
-           }
+
+    // 4. Toast honnête
+    const totalOK     = planningResult.successIds.length + absencesResult.successIds.length;
+    const totalFailed = planningResult.failedIds.length  + absencesResult.failedIds.length;
+
+    if (totalFailed === 0) {
+      toast(`✓ ${totalOK} modification(s) sauvegardée(s)`);
+    } else {
+      console.warn('Échecs de sauvegarde :', planningResult.failedDetails, absencesResult.failedDetails);
+      toast(`⚠️ ${totalFailed} modification(s) NON sauvegardée(s) sur ${totalOK + totalFailed} — vos droits ont peut-être changé, reconnectez-vous`, 'error');
+    }
 
     pendingEdits = {};
     pendingEditsAbs = {};
-    toast('Modifications sauvegardées ✓');
-    
+
     // On quitte le mode édition proprement
     isEditMode = false;
     document.body.classList.remove('edit-mode');
@@ -4542,27 +4574,28 @@ async function saveAllPending() {
     document.getElementById('btn-toggle-edit').classList.replace('btn-danger', 'btn-ghost');
     saveBtn.style.display = 'none';
 
+    isBrushMode = false;
+    const btnBrush = document.getElementById('btn-brush');
+    if (btnBrush) {
+      btnBrush.style.background = 'transparent';
+      btnBrush.style.borderColor = 'var(--border)';
+    }
+    document.getElementById('brush-container').style.display = 'none';
+    document.getElementById('brush-picker-wrapper').style.display = 'none';
 
-           isBrushMode = false; // Désactive la logique du pinceau
-           const btnBrush = document.getElementById('btn-brush');
-           if (btnBrush) {
-               btnBrush.style.background = 'transparent';
-               btnBrush.style.borderColor = 'var(--border)';
-            }
-           document.getElementById('brush-container').style.display = 'none';
-           document.getElementById('brush-picker-wrapper').style.display = 'none';
-
-
+    // 5. Rechargement systématique depuis Supabase — révèle tout échec silencieux
     await loadData();
     await loadAbsences();
+
   } catch (err) {
+    console.error(err);
     toast('Erreur sauvegarde : ' + err.message, 'error');
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = "💾 Sauvegarder";
   }
 }
-
+	
 function buildStats() {
   const list = document.getElementById('stats-list');
   if (!list) return;
