@@ -759,7 +759,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
 
 
 <!-- ===== ONGLET sandbox ===== -->
-<div id="sandbox-wrap" style="display:none; flex:1; overflow:auto; flex-direction:column;">
+<div id="sandbox-wrap" style="display:none; flex:1; overflow:hidden; flex-direction:column; min-height:0;">
 
   <!-- État : pas de sandbox -->
 <div id="sandbox-empty-state" style="padding:60px; text-align:center;">
@@ -786,7 +786,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
   </div>
 
   <!-- État : sandbox active -->
-  <div id="sandbox-active-state" style="display:none; flex-direction:column; flex:1;">
+  <div id="sandbox-active-state" style="display:none; flex-direction:column; flex:1; min-height:0;">
     <div id="sandbox-info-bar" style="padding:12px 24px; background:var(--purple-dim); border-bottom:1px solid var(--purple); display:flex; align-items:center; gap:16px; font-family:'DM Mono',monospace; font-size:11px;">
       <span style="color:var(--purple); font-weight:600;">🧪 SANDBOX ACTIVE</span>
       <span id="sandbox-info-period" style="color:var(--white);"></span>
@@ -798,7 +798,7 @@ tr.new-day td { box-shadow: inset 0 3px 0 -2px var(--gray); }
       <button class="btn-danger" onclick="deleteSandbox()" style="font-size:11px;">🗑️ Supprimer la sandbox</button>
     </div>
 
-<div id="sandbox-table-zone" style="flex:1; overflow:auto; position:relative;">
+<div id="sandbox-table-zone" style="flex:1; overflow:auto; position:relative; min-height:0;">
       <div id="sandbox-empty-rows" style="padding:60px; text-align:center; color:var(--gray); display:none;">Aucune ligne dans la sandbox.</div>
       <table id="sandbox-table">
         <thead id="sandbox-table-head"></thead>
