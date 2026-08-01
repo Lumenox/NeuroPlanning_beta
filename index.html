@@ -3332,20 +3332,6 @@ function populateSecretariatDoc() {
       width:54px; min-width:54px;
       border-left:2px solid #94a3b830; letter-spacing:.04em;">${k}</th>
   `).join('');
-	
-	syncSecretariatHeaderOffsets(); 
-}
-
-function syncSecretariatHeaderOffsets() {
-  const firstRowCell = document.querySelector('#secretariat-table thead tr:first-child th[rowspan="2"]');
-  const secondRowCells = document.querySelectorAll('#secr-box-headers th');
-  if (!firstRowCell || secondRowCells.length === 0) return;
-
-  const firstRowTop    = parseFloat(getComputedStyle(firstRowCell).top) || 0;
-  const firstRowHeight = firstRowCell.getBoundingClientRect().height;
-  const newTop = firstRowTop + firstRowHeight;
-
-  secondRowCells.forEach(th => { th.style.top = `${newTop}px`; });
 }
 
 function computeRiskWindow(doctor) {
@@ -4702,10 +4688,7 @@ function closeDropdown() {
   document.getElementById('edit-dropdown').style.display = 'none';
 }
 
-document.fonts.ready.then(() => {
-  syncSecretariatHeaderOffsets();
-});
-window.addEventListener('resize', syncSecretariatHeaderOffsets);
+
 // Restaure la session si l'utilisateur est déjà connecté
 // et gère le lien d'invitation reçu par email
 window.addEventListener('load', async () => {
