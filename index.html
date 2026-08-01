@@ -4350,8 +4350,9 @@ async function confirmPush() {
     closePushModal();
     pendingPushDiff = [];
 
-    await Data();
-    await SandboxData();
+    await loadData();
+    await loadSandboxData();
+
 
   } catch (err) {
     toast('Erreur publication : ' + err.message, 'error');
@@ -4539,7 +4540,8 @@ async function saveAllPending() {
            document.getElementById('brush-picker-wrapper').style.display = 'none';
 
 
-    await Data();
+    await loadData();
+    await loadAbsences();
   } catch (err) {
     toast('Erreur sauvegarde : ' + err.message, 'error');
   } finally {
