@@ -3037,10 +3037,8 @@ function openPlanningDropdown(td, row, colKey) {
   const compteurs = {};
   listeMedecins.forEach(m => compteurs[m.initiales.toUpperCase()] = 0);
   currentFilteredRows.forEach(r => {
-    DOCTOR_COLS.forEach(c => {
-      const val = (r[c] || '').trim().toUpperCase();
-      if (compteurs.hasOwnProperty(val)) compteurs[val]++;
-    });
+    const val = (r[colKey] || '').trim().toUpperCase();
+    if (compteurs.hasOwnProperty(val)) compteurs[val]++;
   });
 
   const absIdx = buildAbsenceIndex();
@@ -3119,10 +3117,10 @@ function openPlanningDropdownReadOnly(td, row, colKey) {
   const compteurs = {};
   listeMedecins.forEach(m => compteurs[m.initiales.toUpperCase()] = 0);
   currentFilteredRows.forEach(r => {
-    //DOCTOR_COLS.forEach(c => {
-      const val = (r[colKey] || '').trim().toUpperCase();
+    DOCTOR_COLS.forEach(c => {
+      const val = (r[c] || '').trim().toUpperCase();
       if (compteurs.hasOwnProperty(val)) compteurs[val]++;
-    //});
+    });
   });
 
   const absIdx = buildAbsenceIndex();
